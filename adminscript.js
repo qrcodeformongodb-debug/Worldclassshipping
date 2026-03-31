@@ -18,6 +18,7 @@ function showErr(msg) {
   if (box) {
     box.textContent = 'ERROR: ' + msg;
     box.style.display = 'block';
+    setTimeout(() => box.style.display = 'none', 10000);
   }
 }
 
@@ -317,55 +318,69 @@ document.addEventListener("DOMContentLoaded", function () {
     `).join('');
   }
 
-  // ================= SAVE =================
+  // ================= SAVE (FIXED) =================
   window.saveShipment = async function() {
-    const recipient = document.getElementById("recipient");
+    const recipientEl = document.getElementById("recipient");
     
-    if (!recipient || !recipient.value) {
+    if (!recipientEl || !recipientEl.value.trim()) {
       showErr('Please enter a recipient name');
       return;
     }
 
+    // FIX: Properly get and trim videoUrl
+    const videoUrlEl = document.getElementById("videoUrl");
+    const videoUrlValue = videoUrlEl ? videoUrlEl.value.trim() : '';
+    
     const data = {
-      trackingNumber: trackingInput.value.toUpperCase(),
-      sender: document.getElementById("sender")?.value || '',
-      recipient: recipient.value,
-      origin: document.getElementById("origin")?.value || '',
-      destination: document.getElementById("destination")?.value || '',
-      weight: document.getElementById("weight")?.value || '',
-      status: document.getElementById("status")?.value || '',
-      lastUpdate: document.getElementById("lastUpdate")?.value || new Date().toLocaleString(),
+      trackingNumber: trackingInput.value.toUpperCase().trim(),
+      sender: document.getElementById("sender")?.value?.trim() || '',
+      recipient: recipientEl.value.trim(),
+      origin: document.getElementById("origin")?.value?.trim() || '',
+      destination: document.getElementById("destination")?.value?.trim() || '',
+      weight: document.getElementById("weight")?.value?.trim() || '',
+      status: document.getElementById("status")?.value?.trim() || '',
+      lastUpdate: document.getElementById("lastUpdate")?.value?.trim() || new Date().toLocaleString(),
       route: routePoints.map(p => ({lat: p.lat, lng: p.lng, label: p.label, type: p.type})),
-      videoUrl: document.getElementById("videoUrl")?.value || ''
+      videoUrl: videoUrlValue,  // FIX: Use trimmed value
+      updatedAt: new Date().toISOString()
     };
 
-    const exists = shipments.find(s => s.trackingNumber === data.trackingNumber);
+    // FIX: Case-insensitive comparison for existing shipment
+    const exists = shipments.find(s => 
+      s.trackingNumber && s.trackingNumber.toUpperCase() === data.trackingNumber.toUpperCase()
+    );
 
     try {
       if (exists) {
         await shipmentService.update(data.trackingNumber, data);
+        showOk('Shipment updated successfully!');
       } else {
+        data.createdAt = new Date().toISOString();
         await shipmentService.create(data);
+        showOk('Shipment created! Tracking: ' + data.trackingNumber);
       }
       
-      showOk('Shipment saved! New tracking: ' + generateTrackingNumber());
+      // Generate new tracking number for next entry
+      trackingInput.value = generateTrackingNumber();
       resetForm();
     } catch(err) {
       showErr('Save failed: ' + err.message);
+      console.error('Save error:', err);
     }
   };
 
   // ================= DELETE =================
   window.removeShipment = async function(tn) {
-    if (!confirm('Delete?')) return;
+    if (!confirm('Delete shipment ' + tn + '?')) return;
     try {
       await shipmentService.delete(tn);
+      showOk('Shipment deleted');
     } catch(e) {
       showErr('Delete failed: ' + e.message);
     }
   };
 
-  // ================= EDIT =================
+  // ================= EDIT (FIXED) =================
   window.editShipment = function(tn) {
     const s = shipments.find(x => x.trackingNumber === tn);
     if (!s) {
@@ -373,23 +388,40 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
 
-    // Set form values
+    // FIX: Properly get all form elements
     trackingInput.value = s.trackingNumber;
     document.getElementById("sender").value = s.sender || '';
-    recipient.value = s.recipient || '';
+    document.getElementById("recipient").value = s.recipient || '';
     document.getElementById("origin").value = s.origin || '';
     document.getElementById("destination").value = s.destination || '';
     document.getElementById("weight").value = s.weight || '';
     document.getElementById("status").value = s.status || '';
     document.getElementById("lastUpdate").value = s.lastUpdate || '';
     
-    // Set video if exists
-    if (s.videoUrl) {
-      document.getElementById("videoUrl").value = s.videoUrl;
-      document.getElementById("videoPreview").innerHTML = `
+    // FIX: Properly handle video URL when editing
+    const videoUrlEl = document.getElementById("videoUrl");
+    const videoPreviewEl = document.getElementById("videoPreview");
+    const videoFileNameEl = document.getElementById("videoFileName");
+    const uploadVideoBtnEl = document.getElementById("uploadVideoBtn");
+    
+    if (s.videoUrl && s.videoUrl.trim() !== '') {
+      // Has existing video
+      videoUrlEl.value = s.videoUrl;
+      videoPreviewEl.innerHTML = `
         <p><strong>Current Video:</strong></p>
         <video controls src="${s.videoUrl}" style="max-width:100%; max-height:200px;"></video>
+        <p style="font-size:12px; color:#666; margin-top:5px;">${s.videoUrl}</p>
       `;
+      videoFileNameEl.textContent = "Video already uploaded";
+      uploadVideoBtnEl.disabled = true;
+      selectedVideoFile = null;
+    } else {
+      // No video - clear fields
+      videoUrlEl.value = '';
+      videoPreviewEl.innerHTML = '';
+      videoFileNameEl.textContent = '';
+      uploadVideoBtnEl.disabled = true;
+      selectedVideoFile = null;
     }
 
     // Clear and reload map markers
@@ -440,7 +472,11 @@ document.addEventListener("DOMContentLoaded", function () {
       updateRouteLine();
     }
     
+    // Scroll to form
+    document.querySelector('.form-box').scrollIntoView({ behavior: 'smooth' });
+    
     log('Loaded for edit: ' + tn);
+    showOk('Editing shipment: ' + tn);
   };
 
   // ================= HELPERS =================
@@ -467,11 +503,16 @@ document.addEventListener("DOMContentLoaded", function () {
       if (el) el.value = '';
     });
     
-    // Clear video
-    document.getElementById("videoUrl").value = '';
-    document.getElementById("videoPreview").innerHTML = '';
-    document.getElementById("videoFileName").textContent = '';
-    document.getElementById("uploadVideoBtn").disabled = true;
+    // Clear video fields completely
+    const videoUrlEl = document.getElementById("videoUrl");
+    const videoPreviewEl = document.getElementById("videoPreview");
+    const videoFileNameEl = document.getElementById("videoFileName");
+    const uploadVideoBtnEl = document.getElementById("uploadVideoBtn");
+    
+    if (videoUrlEl) videoUrlEl.value = '';
+    if (videoPreviewEl) videoPreviewEl.innerHTML = '';
+    if (videoFileNameEl) videoFileNameEl.textContent = '';
+    if (uploadVideoBtnEl) uploadVideoBtnEl.disabled = true;
     selectedVideoFile = null;
     
     clearMapMarkers();

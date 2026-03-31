@@ -50,12 +50,25 @@ async function loadShipment() {
     document.getElementById("status").textContent = shipment.status || "N/A";
     document.getElementById("lastUpdate").textContent = shipment.lastUpdate || "N/A";
 
-    // Show video if exists
-    if (shipment.videoUrl) {
-      const videoSection = document.getElementById("videoSection");
-      const video = document.getElementById("shipmentVideo");
+    // FIX: Show video if exists - check for valid URL string
+    const videoSection = document.getElementById("videoSection");
+    const video = document.getElementById("shipmentVideo");
+    
+    // Reset video section first
+    if (videoSection) {
+      videoSection.style.display = "none";
+    }
+    if (video) {
+      video.src = "";
+      video.load();
+    }
+    
+    // Check if videoUrl exists and is a valid non-empty string
+    const videoUrl = shipment.videoUrl;
+    if (videoUrl && typeof videoUrl === 'string' && videoUrl.trim() !== "" && videoUrl.startsWith('http')) {
       if (videoSection && video) {
-        video.src = shipment.videoUrl;
+        video.src = videoUrl;
+        video.load(); // Force reload
         videoSection.style.display = "block";
       }
     }
@@ -173,7 +186,7 @@ function initMap(shipment) {
 }
 
 // ===============================
-// CHAT (same as before)
+// CHAT
 // ===============================
 async function initializeChat() {
   chatTrackingNumber.textContent = tn;
