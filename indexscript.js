@@ -1,4 +1,4 @@
-// indexscript.js - Firebase version
+// indexscript.js - Firebase CDN version
 import { shipmentService } from './firebase.js';
 
 async function trackShipment() {

@@ -1,5 +1,6 @@
-// chat.js - Firebase version with real-time updates
+// chat.js - Firebase CDN version with real-time updates
 import { chatService } from './firebase.js';
+import { collection, query, orderBy, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
 let currentChatId = null;
 let currentTrackingNumber = null;

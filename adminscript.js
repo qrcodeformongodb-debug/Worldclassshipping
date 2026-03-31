@@ -1,6 +1,6 @@
-// adminscript.js with HTML error display
+// adminscript.js - CDN version
 import { shipmentService } from './firebase.js';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { db } from './firebase.js';
 
 // Log to both console and HTML
@@ -133,7 +133,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // Render table
   function renderTable() {
     if (!shipments.length) {
-      shipmentTable.innerHTML = '<tr><td colspan="5" style="text-align:center;">No shipments. Create one above!</td></tr>';
+      shipmentTable.innerHTML = '<tr><td colspan="5" style="text-align:center;">No shipments. Create one!</td></tr>';
       return;
     }
     
