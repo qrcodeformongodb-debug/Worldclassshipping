@@ -5,101 +5,390 @@
   <title>Track Shipment | worldclassshipping</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="track.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
   <style>
-    .video-section {
-      margin: 20px 0;
-      padding: 20px;
-      background: #f8f9fa;
-      border-radius: 8px;
-      border: 1px solid #ddd;
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
-    .video-section h3 {
-      margin-bottom: 15px;
-      color: #002147;
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f6fa;
+      color: #2c3e50;
+      line-height: 1.6;
     }
-    .video-container {
-      position: relative;
-      padding-bottom: 56.25%; /* 16:9 aspect ratio */
-      height: 0;
-      overflow: hidden;
-      max-width: 100%;
-      background: #000;
-      border-radius: 8px;
-    }
-    .video-container video {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-    }
-    #map {
-      height: 400px;
-      border-radius: 8px;
-      border: 2px solid #002147;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    .route-animated {
-      stroke: #002147;
-      stroke-width: 4;
-      fill: none;
-      stroke-dasharray: 10;
-      animation: dash 20s linear infinite;
-    }
-    @keyframes dash {
-      to { stroke-dashoffset: -1000; }
-    }
-    .custom-marker {
-      background: #002147;
+    
+    /* Header */
+    .navbar {
+      background: #0a2a66;
       color: white;
-      padding: 8px 12px;
-      border-radius: 20px;
-      font-weight: bold;
+      padding: 15px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .navbar .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #00c6ff, #0072ff);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+    
+    .menu-btn {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+    }
+    
+    /* Main Container */
+    .tracking-container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    /* Tracking Header */
+    .tracking-header {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    
+    .tracking-label {
+      color: #e74c3c;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      display: block;
+    }
+    
+    .tracking-number {
+      font-size: 24px;
+      font-weight: 700;
+      color: #2c3e50;
+      letter-spacing: 1px;
+      word-break: break-all;
+    }
+    
+    /* Status Badge */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #fff3cd;
+      color: #856404;
+      padding: 10px 20px;
+      border-radius: 25px;
+      font-size: 14px;
+      font-weight: 600;
+      margin-top: 15px;
+    }
+    
+    .status-badge::before {
+      content: "●";
+      color: #f39c12;
+    }
+    
+    .status-badge.delivered {
+      background: #d4edda;
+      color: #155724;
+    }
+    
+    .status-badge.delivered::before {
+      color: #28a745;
+    }
+    
+    .status-badge.in-transit {
+      background: #cce5ff;
+      color: #004085;
+    }
+    
+    .status-badge.in-transit::before {
+      color: #007bff;
+    }
+    
+    /* Media Section (Video/Image) - CENTERED */
+    .media-section {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      text-align: center;
+    }
+    
+    .media-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #2c3e50;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    
+    .media-container {
+      position: relative;
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #000;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    .media-container video {
+      width: 100%;
+      height: auto;
+      max-height: 400px;
+      display: block;
+    }
+    
+    .media-container img {
+      width: 100%;
+      height: auto;
+      max-height: 400px;
+      display: block;
+      object-fit: cover;
+    }
+    
+    .media-placeholder {
+      padding: 60px 20px;
+      color: #7f8c8d;
+      font-size: 14px;
+    }
+    
+    /* Shipment Details Grid */
+    .details-section {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #2c3e50;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .details-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    
+    @media (max-width: 480px) {
+      .details-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+      }
+    }
+    
+    .detail-item {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    
+    .detail-label {
       font-size: 12px;
+      color: #7f8c8d;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 500;
+    }
+    
+    .detail-value {
+      font-size: 16px;
+      font-weight: 600;
+      color: #2c3e50;
+    }
+    
+    /* Journey Timeline */
+    .journey-section {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    
+    .journey-list {
+      list-style: none;
+      position: relative;
+      padding-left: 30px;
+    }
+    
+    .journey-list::before {
+      content: '';
+      position: absolute;
+      left: 8px;
+      top: 8px;
+      bottom: 8px;
+      width: 2px;
+      background: #e0e0e0;
+    }
+    
+    .journey-item {
+      position: relative;
+      padding-bottom: 25px;
+      opacity: 0.5;
+    }
+    
+    .journey-item:last-child {
+      padding-bottom: 0;
+    }
+    
+    .journey-item.active {
+      opacity: 1;
+    }
+    
+    .journey-item.completed {
+      opacity: 1;
+    }
+    
+    .journey-dot {
+      position: absolute;
+      left: -26px;
+      top: 2px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #e0e0e0;
       border: 3px solid white;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+      box-shadow: 0 0 0 2px #e0e0e0;
+    }
+    
+    .journey-item.active .journey-dot {
+      background: #e74c3c;
+      box-shadow: 0 0 0 2px #e74c3c;
+      animation: pulse 2s infinite;
+    }
+    
+    .journey-item.completed .journey-dot {
+      background: #27ae60;
+      box-shadow: 0 0 0 2px #27ae60;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+    
+    .journey-title {
+      font-weight: 600;
+      color: #2c3e50;
+      margin-bottom: 4px;
+    }
+    
+    .journey-location {
+      font-size: 14px;
+      color: #7f8c8d;
+      margin-bottom: 4px;
+    }
+    
+    .journey-time {
+      font-size: 12px;
+      color: #e74c3c;
+    }
+    
+    .journey-item.completed .journey-time {
+      color: #27ae60;
+    }
+    
+    /* Error State */
+    .error-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #e74c3c;
+    }
+    
+    .error-state h2 {
+      margin-bottom: 10px;
+    }
+    
+    /* Loading */
+    .loading-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #7f8c8d;
+    }
+    
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #0a2a66;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* Footer */
+    footer {
+      background: #0a2a66;
+      color: white;
+      text-align: center;
+      padding: 20px;
+      margin-top: 40px;
     }
   </style>
 </head>
 <body>
 
 <header class="navbar">
-  <div class="logo">worldclassshipping</div>
+  <div class="logo">
+    <div class="logo-icon">🌐</div>
+    <span>worldclassshipping</span>
+  </div>
+  <button class="menu-btn">☰</button>
 </header>
 
-<section class="tracking-container">
-  <h2>Shipment Tracking</h2>
-  <p>Tracking Number: <strong id="tn"></strong></p>
-
-  <div class="card">
-    <h3>Shipment Details</h3>
-    <p>Sender: <span id="sender"></span></p>
-    <p>Receiver: <span id="receiver"></span></p>
-    <p>Origin: <span id="origin"></span></p>
-    <p>Destination: <span id="destination"></span></p>
-    <p>Weight: <span id="weight"></span></p>
-    <p>Status: <span id="status"></span></p>
-    <p>Last Update: <span id="lastUpdate"></span></p>
-  </div>
-
-  <!-- Video Section -->
-  <div class="card video-section" id="videoSection" style="display:none;">
-    <h3>📹 item viedo</h3>
-    <div class="video-container">
-      <video id="shipmentVideo" controls poster="https://via.placeholder.com/800x450/002147/ffffff?text=Shipment+Video">
-        Your browser does not support the video tag.
-      </video>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>Route</h3>
-    <div id="map"></div>
+<section class="tracking-container" id="trackingContainer">
+  <!-- Content loaded dynamically -->
+  <div class="loading-state">
+    <div class="spinner"></div>
+    <p>Loading shipment details...</p>
   </div>
 </section>
 
-<!-- Need Help Chat Widget -->
+<footer>
+  <p>&copy; 2026 worldclassshipping. All rights reserved.</p>
+</footer>
+
+<!-- Chat Widget (Preserved from original) -->
 <div class="chat-widget" id="chatWidget">
   <button class="chat-fab" id="chatFab" title="Need Help?">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -141,7 +430,6 @@
   </div>
 </div>
 
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script type="module" src="firebase.js"></script>
 <script type="module" src="track.js"></script>
 

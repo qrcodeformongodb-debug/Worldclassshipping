@@ -5,92 +5,455 @@
   <title>worldclassshipping | Admin</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="admin.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.css" />
   <style>
-    #adminMap {
-      width: 100%;
-      height: 400px;
-      margin-bottom: 10px;
-      border: 2px solid #002147;
-      border-radius: 8px;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
-    .video-section {
-      margin: 15px 0;
-      padding: 15px;
-      background: #f8f9fa;
-      border-radius: 8px;
-      border: 1px solid #ddd;
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f6fa;
+      color: #2c3e50;
     }
-    .video-preview {
-      margin-top: 10px;
-      max-width: 100%;
-    }
-    .video-preview video {
-      max-width: 100%;
-      max-height: 300px;
-      border-radius: 8px;
-    }
-    .upload-btn {
-      background: #28a745;
+    
+    /* Header */
+    .navbar {
+      background: #0a2a66;
       color: white;
-      padding: 10px 20px;
+      padding: 15px 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .navbar .logo {
+      font-size: 18px;
+      font-weight: 600;
+    }
+    
+    .navbar nav {
+      display: flex;
+      gap: 10px;
+    }
+    
+    .navbar a {
+      color: white;
+      text-decoration: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      transition: background 0.3s;
+    }
+    
+    .navbar a:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+    
+    .navbar a.active {
+      background: rgba(255, 255, 255, 0.2);
+      font-weight: bold;
+    }
+    
+    /* Main Container */
+    .admin-section {
+      max-width: 900px;
+      margin: 30px auto;
+      padding: 0 20px;
+    }
+    
+    /* Error/Status Boxes */
+    #errorBox {
+      display: none;
+      background: #e74c3c;
+      color: white;
+      padding: 15px;
+      margin: 0 0 20px 0;
+      border-radius: 8px;
+      font-weight: 500;
+    }
+    
+    #statusBox {
+      display: none;
+      background: #27ae60;
+      color: white;
+      padding: 15px;
+      margin: 0 0 20px 0;
+      border-radius: 8px;
+      font-weight: 500;
+    }
+    
+    /* Cards */
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 25px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    
+    .card-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: #2c3e50;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    /* Tracking Number Display */
+    .tracking-display {
+      background: linear-gradient(135deg, #0a2a66, #004080);
+      color: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 25px;
+      text-align: center;
+    }
+    
+    .tracking-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      opacity: 0.9;
+      margin-bottom: 8px;
+    }
+    
+    .tracking-number {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      font-family: 'Courier New', monospace;
+    }
+    
+    /* Video Section - CENTERED & PROMINENT */
+    .video-section {
+      text-align: center;
+      margin-bottom: 25px;
+    }
+    
+    .video-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #2c3e50;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    
+    .video-container {
+      position: relative;
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto 20px auto;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #000;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      min-height: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .video-container video {
+      width: 100%;
+      height: auto;
+      max-height: 400px;
+      display: block;
+    }
+    
+    .video-placeholder {
+      color: #7f8c8d;
+      font-size: 14px;
+      padding: 40px;
+    }
+    
+    .video-placeholder-icon {
+      font-size: 48px;
+      margin-bottom: 10px;
+    }
+    
+    /* Video Controls */
+    .video-controls {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 15px;
+    }
+    
+    .upload-btn {
+      background: #27ae60;
+      color: white;
       border: none;
-      border-radius: 5px;
+      padding: 12px 24px;
+      border-radius: 25px;
       cursor: pointer;
-      margin-right: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.3s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
     }
+    
     .upload-btn:hover {
-      background: #218838;
+      background: #229954;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3);
     }
+    
     .upload-btn:disabled {
-      background: #6c757d;
+      background: #95a5a6;
       cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
     }
+    
+    .upload-btn.secondary {
+      background: #3498db;
+    }
+    
+    .upload-btn.secondary:hover {
+      background: #2980b9;
+    }
+    
+    .file-name {
+      color: #7f8c8d;
+      font-size: 14px;
+      margin-top: 10px;
+      word-break: break-all;
+    }
+    
+    /* Progress Bar */
     .progress-bar {
       width: 100%;
-      height: 20px;
-      background: #e9ecef;
-      border-radius: 10px;
+      max-width: 600px;
+      height: 8px;
+      background: #e0e0e0;
+      border-radius: 4px;
       overflow: hidden;
-      margin-top: 10px;
+      margin: 15px auto;
       display: none;
     }
+    
     .progress-bar.show {
       display: block;
     }
+    
     .progress-fill {
       height: 100%;
-      background: #28a745;
+      background: linear-gradient(90deg, #27ae60, #2ecc71);
       width: 0%;
-      transition: width 0.3s;
+      transition: width 0.3s ease;
     }
-    .route-line {
-      stroke: #002147;
-      stroke-width: 4;
-      fill: none;
-      stroke-dasharray: 10;
-      animation: dash 30s linear infinite;
+    
+    /* Form Grid */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 25px;
     }
-    @keyframes dash {
-      to {
-        stroke-dashoffset: -1000;
+    
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    
+    .form-group label {
+      font-size: 12px;
+      color: #7f8c8d;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+    
+    .form-group input,
+    .form-group select {
+      padding: 12px 15px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 15px;
+      transition: all 0.3s;
+      font-family: inherit;
+    }
+    
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #0a2a66;
+      box-shadow: 0 0 0 3px rgba(10, 42, 102, 0.1);
+    }
+    
+    .form-group input[readonly] {
+      background: #f8f9fa;
+      color: #0a2a66;
+      font-weight: 600;
+      font-family: 'Courier New', monospace;
+    }
+    
+    /* Action Buttons */
+    .action-bar {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      flex-wrap: wrap;
+      padding-top: 20px;
+      border-top: 2px solid #f0f0f0;
+    }
+    
+    .btn-primary {
+      background: #0a2a66;
+      color: white;
+      border: none;
+      padding: 14px 40px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .btn-primary:hover {
+      background: #004080;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(10, 42, 102, 0.3);
+    }
+    
+    .btn-secondary {
+      background: white;
+      color: #e74c3c;
+      border: 2px solid #e74c3c;
+      padding: 14px 30px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .btn-secondary:hover {
+      background: #e74c3c;
+      color: white;
+    }
+    
+    /* Table Section */
+    .table-card {
+      overflow-x: auto;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    
+    th {
+      background: #0a2a66;
+      color: white;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+    }
+    
+    tr:hover {
+      background: #f8f9fa;
+    }
+    
+    .table-actions {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .table-actions button {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    
+    .btn-edit {
+      background: #f39c12;
+      color: white;
+    }
+    
+    .btn-edit:hover {
+      background: #e67e22;
+    }
+    
+    .btn-delete-table {
+      background: #e74c3c;
+      color: white;
+    }
+    
+    .btn-delete-table:hover {
+      background: #c0392b;
+    }
+    
+    .video-link {
+      color: #3498db;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    
+    .video-link:hover {
+      text-decoration: underline;
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+      .navbar {
+        padding: 15px 20px;
+      }
+      
+      .admin-section {
+        padding: 0 15px;
+      }
+      
+      .card {
+        padding: 20px;
+      }
+      
+      .tracking-number {
+        font-size: 22px;
+      }
+      
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .action-bar {
+        flex-direction: column;
+      }
+      
+      .btn-primary, .btn-secondary {
+        width: 100%;
       }
     }
-    .custom-marker {
-      background: #002147;
-      color: white;
-      padding: 8px 12px;
-      border-radius: 20px;
-      font-weight: bold;
-      font-size: 12px;
-      border: 3px solid white;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    
+    /* Loading State */
+    .loading-row {
+      text-align: center;
+      padding: 40px;
+      color: #7f8c8d;
     }
-    .marker-origin { background: #28a745; }
-    .marker-transit { background: #ffc107; color: #000; }
-    .marker-destination { background: #dc3545; }
   </style>
 </head>
 <body>
@@ -105,71 +468,153 @@
 
 <section class="admin-section">
   
-  <!-- Error Display Box -->
-  <div id="errorBox" style="display:none; background:#dc3545; color:white; padding:15px; margin:10px 0; border-radius:4px;"></div>
-  
-  <!-- Status Display Box -->
-  <div id="statusBox" style="display:none; background:#28a745; color:white; padding:10px; margin:10px 0; border-radius:4px;"></div>
+  <!-- Error Display -->
+  <div id="errorBox"></div>
+  <div id="statusBox"></div>
 
-  <h2>Create / Edit Shipment</h2>
-
-  <div class="form-box">
-    <input id="tracking" readonly placeholder="Tracking Number">
-
-    <input id="sender" placeholder="Sender Name">
-    <input id="recipient" placeholder="Receiver Name">
-    <input id="origin" placeholder="Origin">
-    <input id="destination" placeholder="Destination">
-    <input id="weight" placeholder="Weight (kg)">
-
-    <input id="status" placeholder="Current Status">
-    <input id="lastUpdate" placeholder="Last Update">
-
-    <h3>📍 Set Route (Click map to add points)</h3>
-    <div id="adminMap"></div>
-    <p style="color:gray; font-size:0.9em;">
-      Click on the map to add Origin → Transit → Destination. Drag markers to adjust. Route line will animate to show movement.
-    </p>
-
-    <!-- Video Upload Section -->
+  <!-- Create/Edit Form -->
+  <div class="card">
+    <div class="card-title">
+      <span>📦</span>
+      <span>Create / Edit Shipment</span>
+    </div>
+    
+    <!-- Tracking Number Display -->
+    <div class="tracking-display">
+      <div class="tracking-label">Tracking Number</div>
+      <div class="tracking-number" id="trackingDisplay">Generating...</div>
+    </div>
+    
+    <!-- Hidden Input for Form Submission -->
+    <input type="hidden" id="tracking">
+    
+    <!-- Video Upload Section - CENTERED & MAIN FOCUS -->
     <div class="video-section">
-      <h3>📹 Shipment Video</h3>
-      <input type="file" id="videoInput" accept="video/*" style="display:none;">
-      <button class="upload-btn" onclick="document.getElementById('videoInput').click()">Select Video</button>
-      <button class="upload-btn" id="uploadVideoBtn" onclick="uploadVideo()" disabled>Upload to Cloudinary</button>
-      <span id="videoFileName" style="margin-left:10px; color:#666;"></span>
+      <div class="video-title">
+        <span>📹</span>
+        <span>Shipment Video (Required)</span>
+      </div>
+      
+      <div class="video-container" id="videoPreviewContainer">
+        <div class="video-placeholder">
+          <div class="video-placeholder-icon">🎥</div>
+          <p>No video selected</p>
+          <p style="font-size: 12px; margin-top: 5px;">Upload a video of the item being packaged</p>
+        </div>
+      </div>
+      
+      <input type="file" id="videoInput" accept="video/*" style="display: none;">
+      <input type="hidden" id="videoUrl">
       
       <div class="progress-bar" id="progressBar">
         <div class="progress-fill" id="progressFill"></div>
       </div>
       
-      <div class="video-preview" id="videoPreview"></div>
-      <input type="hidden" id="videoUrl">
+      <div class="file-name" id="videoFileName"></div>
+      
+      <div class="video-controls">
+        <button class="upload-btn" onclick="document.getElementById('videoInput').click()">
+          <span>📁</span> Select Video
+        </button>
+        <button class="upload-btn secondary" id="uploadVideoBtn" onclick="uploadVideo()" disabled>
+          <span>☁️</span> Upload to Cloud
+        </button>
+        <button class="upload-btn" id="clearVideoBtn" onclick="clearVideo()" style="background: #e74c3c; display: none;">
+          <span>🗑️</span> Remove
+        </button>
+      </div>
     </div>
-
-    <button onclick="saveShipment()" style="margin-top:20px; padding:12px 30px; font-size:16px;">Save Shipment</button>
+    
+    <!-- Shipment Details Form -->
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Sender Name</label>
+        <input id="sender" placeholder="Enter sender name">
+      </div>
+      
+      <div class="form-group">
+        <label>Receiver Name</label>
+        <input id="recipient" placeholder="Enter receiver name">
+      </div>
+      
+      <div class="form-group">
+        <label>Origin Location</label>
+        <input id="origin" placeholder="City, Country">
+      </div>
+      
+      <div class="form-group">
+        <label>Destination</label>
+        <input id="destination" placeholder="City, Country">
+      </div>
+      
+      <div class="form-group">
+        <label>Weight (kg)</label>
+        <input id="weight" placeholder="e.g., 2.5" type="number" step="0.1">
+      </div>
+      
+      <div class="form-group">
+        <label>Current Status</label>
+        <select id="status">
+          <option value="">Select Status</option>
+          <option value="Package Received">Package Received</option>
+          <option value="Package Picked Up">Package Picked Up</option>
+          <option value="In Transit">In Transit</option>
+          <option value="Out for Delivery">Out for Delivery</option>
+          <option value="Delivered">Delivered</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>Last Update</label>
+        <input id="lastUpdate" placeholder="Auto-generated if empty">
+      </div>
+      
+      <div class="form-group">
+        <label>Estimated Delivery</label>
+        <input id="estDelivery" placeholder="e.g., Tuesday, April 7, 2026">
+      </div>
+    </div>
+    
+    <!-- Action Buttons -->
+    <div class="action-bar">
+      <button class="btn-primary" onclick="saveShipment()">
+        💾 Save Shipment
+      </button>
+      <button class="btn-secondary" onclick="resetForm()">
+        🔄 Reset Form
+      </button>
+    </div>
   </div>
 
-  <h2>All Shipments</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Tracking</th>
-        <th>Receiver</th>
-        <th>Status</th>
-        <th>Last Update</th>
-        <th>Video</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody id="shipmentTable">
-      <tr><td colspan="6" style="text-align:center;">Loading...</td></tr>
-    </tbody>
-  </table>
+  <!-- Shipments Table -->
+  <div class="card table-card">
+    <div class="card-title">
+      <span>📋</span>
+      <span>All Shipments</span>
+    </div>
+    
+    <table>
+      <thead>
+        <tr>
+          <th>Tracking #</th>
+          <th>Receiver</th>
+          <th>Status</th>
+          <th>Last Update</th>
+          <th>Video</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="shipmentTable">
+        <tr>
+          <td colspan="6" class="loading-row">
+            <div style="display: inline-block; width: 20px; height: 20px; border: 3px solid #f3f3f3; border-top: 3px solid #0a2a66; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 10px; vertical-align: middle;"></div>
+            Loading shipments...
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 </section>
-
-<!-- Leaflet -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <!-- Firebase and Admin Scripts -->
 <script type="module" src="firebase.js"></script>

@@ -1,24 +1,30 @@
-// adminscript.js - CDN version with Cloudinary video upload and enhanced map
+// adminscript.js - Updated with video as main focus, no map
 import { shipmentService } from './firebase.js';
 import { collection, query, orderBy, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { db } from './firebase.js';
 
 // Cloudinary config
 const CLOUDINARY_CLOUD_NAME = 'du3nmhdh9';
-const CLOUDINARY_UPLOAD_PRESET = 'shipping_videos'; // You'll need to create this in Cloudinary
+const CLOUDINARY_UPLOAD_PRESET = 'shipping_videos';
 
-// Log to both console and HTML
+// State
+let shipments = [];
+let selectedVideoFile = null;
+
+// ===============================
+// LOGGING HELPERS
+// ===============================
 function log(msg, type = 'info') {
-  console.log('[' + type + ']', msg);
+  console.log(`[${type}]`, msg);
 }
 
 function showErr(msg) {
   console.error(msg);
   const box = document.getElementById('errorBox');
   if (box) {
-    box.textContent = 'ERROR: ' + msg;
+    box.textContent = '❌ ' + msg;
     box.style.display = 'block';
-    setTimeout(() => box.style.display = 'none', 10000);
+    setTimeout(() => box.style.display = 'none', 8000);
   }
 }
 
@@ -26,503 +32,434 @@ function showOk(msg) {
   console.log(msg);
   const box = document.getElementById('statusBox');
   if (box) {
-    box.textContent = msg;
+    box.textContent = '✅ ' + msg;
     box.style.display = 'block';
-    setTimeout(() => box.style.display = 'none', 5000);
+    setTimeout(() => box.style.display = 'none', 4000);
   }
 }
 
-log('Script starting...');
-
+// ===============================
+// INITIALIZATION
+// ===============================
 document.addEventListener("DOMContentLoaded", function () {
-  log('DOM loaded');
+  log('Admin panel loaded');
   
-  // Check elements
+  // Check required elements
   const trackingInput = document.getElementById("tracking");
-  const mapDiv = document.getElementById("adminMap");
-  const shipmentTable = document.getElementById("shipmentTable");
+  const trackingDisplay = document.getElementById("trackingDisplay");
   
-  if (!trackingInput) {
-    showErr('Tracking input not found!');
-    return;
-  }
-  
-  if (!mapDiv) {
-    showErr('Map div not found!');
+  if (!trackingInput || !trackingDisplay) {
+    showErr('Required form elements not found!');
     return;
   }
 
-  // Check Leaflet
-  if (typeof window.L === 'undefined') {
-    showErr('Leaflet not loaded! Check internet.');
-    mapDiv.innerHTML = '<p style="color:red;padding:20px;">Map failed to load.</p>';
-    return;
-  }
+  // Generate initial tracking number
+  generateNewTracking();
   
-  log('Leaflet loaded');
-
-  // Generate tracking number
-  function generateTrackingNumber() {
-    return "EC-" + Math.random().toString(36).substring(2, 10).toUpperCase();
-  }
+  // Setup video handlers
+  setupVideoHandlers();
   
-  // Set initial value
-  trackingInput.value = generateTrackingNumber();
-  log('Tracking number: ' + trackingInput.value);
+  // Load shipments
+  loadShipments();
+  
+  log('Admin ready');
+});
 
-  // State
-  let routePoints = [];
-  let mapMarkers = [];
-  let routeLine = null;
-  let shipments = [];
-  let adminMap = null;
-  let selectedVideoFile = null;
+// ===============================
+// TRACKING NUMBER
+// ===============================
+function generateNewTracking() {
+  const tracking = "EC-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+  document.getElementById("tracking").value = tracking;
+  const display = document.getElementById("trackingDisplay");
+  if (display) display.textContent = tracking;
+  return tracking;
+}
 
-  // ================= VIDEO UPLOAD =================
+// ===============================
+// VIDEO HANDLERS
+// ===============================
+function setupVideoHandlers() {
   const videoInput = document.getElementById('videoInput');
   const uploadBtn = document.getElementById('uploadVideoBtn');
-  const fileNameSpan = document.getElementById('videoFileName');
-  const progressBar = document.getElementById('progressBar');
-  const progressFill = document.getElementById('progressFill');
-  const videoPreview = document.getElementById('videoPreview');
-  const videoUrlInput = document.getElementById('videoUrl');
-
-  // Handle file selection
+  
   if (videoInput) {
     videoInput.addEventListener('change', function(e) {
       const file = e.target.files[0];
-      if (file) {
-        selectedVideoFile = file;
-        fileNameSpan.textContent = file.name;
-        uploadBtn.disabled = false;
-        
-        // Show local preview
-        const url = URL.createObjectURL(file);
-        videoPreview.innerHTML = `
-          <p><strong>Preview (not uploaded yet):</strong></p>
-          <video controls src="${url}" style="max-width:100%; max-height:200px;"></video>
-        `;
+      if (!file) return;
+      
+      // Validate file type
+      if (!file.type.startsWith('video/')) {
+        showErr('Please select a valid video file');
+        return;
+      }
+      
+      // Validate file size (max 100MB)
+      if (file.size > 100 * 1024 * 1024) {
+        showErr('Video file too large. Maximum size is 100MB.');
+        return;
+      }
+      
+      selectedVideoFile = file;
+      
+      // Show file name
+      const fileNameEl = document.getElementById('videoFileName');
+      if (fileNameEl) {
+        fileNameEl.textContent = `Selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+      }
+      
+      // Enable upload button
+      if (uploadBtn) uploadBtn.disabled = false;
+      
+      // Show local preview
+      showVideoPreview(URL.createObjectURL(file), false);
+      
+      log('Video selected: ' + file.name);
+    });
+  }
+}
+
+function showVideoPreview(url, isUploaded = false) {
+  const container = document.getElementById('videoPreviewContainer');
+  const clearBtn = document.getElementById('clearVideoBtn');
+  
+  if (!container) return;
+  
+  container.innerHTML = `
+    <video controls ${isUploaded ? '' : 'style="opacity: 0.7;"'}>
+      <source src="${url}" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+  `;
+  
+  // Show clear button if video exists
+  if (clearBtn) {
+    clearBtn.style.display = 'inline-flex';
+  }
+}
+
+// ===============================
+// VIDEO UPLOAD
+// ===============================
+window.uploadVideo = async function() {
+  if (!selectedVideoFile) {
+    showErr('Please select a video first');
+    return;
+  }
+
+  const uploadBtn = document.getElementById('uploadVideoBtn');
+  const progressBar = document.getElementById('progressBar');
+  const progressFill = document.getElementById('progressFill');
+  
+  // Disable button during upload
+  if (uploadBtn) uploadBtn.disabled = true;
+  if (progressBar) progressBar.classList.add('show');
+  
+  const formData = new FormData();
+  formData.append('file', selectedVideoFile);
+  formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+  formData.append('cloud_name', CLOUDINARY_CLOUD_NAME);
+
+  try {
+    log('Uploading to Cloudinary...');
+    
+    const xhr = new XMLHttpRequest();
+    
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable && progressFill) {
+        const percent = (e.loaded / e.total) * 100;
+        progressFill.style.width = percent + '%';
       }
     });
-  }
-
-  // Upload to Cloudinary
-  window.uploadVideo = async function() {
-    if (!selectedVideoFile) {
-      showErr('Please select a video first');
-      return;
-    }
-
-    uploadBtn.disabled = true;
-    progressBar.classList.add('show');
     
-    const formData = new FormData();
-    formData.append('file', selectedVideoFile);
-    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-    formData.append('cloud_name', CLOUDINARY_CLOUD_NAME);
-
-    try {
-      log('Uploading to Cloudinary...');
-      
-      const xhr = new XMLHttpRequest();
-      
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          const percent = (e.loaded / e.total) * 100;
-          progressFill.style.width = percent + '%';
-        }
-      });
-      
-      xhr.addEventListener('load', () => {
-        if (xhr.status === 200) {
-          const response = JSON.parse(xhr.responseText);
-          const videoUrl = response.secure_url;
-          
-          videoUrlInput.value = videoUrl;
-          videoPreview.innerHTML = `
-            <p><strong>✅ Uploaded successfully!</strong></p>
-            <video controls src="${videoUrl}" style="max-width:100%; max-height:200px;"></video>
-            <p style="font-size:12px; color:#666;">URL: ${videoUrl}</p>
-          `;
-          
-          showOk('Video uploaded successfully!');
-          progressBar.classList.remove('show');
-          progressFill.style.width = '0%';
-          log('Video uploaded: ' + videoUrl);
-        } else {
-          showErr('Upload failed: ' + xhr.statusText);
-          uploadBtn.disabled = false;
-        }
-      });
-      
-      xhr.addEventListener('error', () => {
-        showErr('Upload error occurred');
-        uploadBtn.disabled = false;
-      });
-      
-      xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`);
-      xhr.send(formData);
-      
-    } catch (err) {
-      showErr('Upload error: ' + err.message);
-      uploadBtn.disabled = false;
-    }
-  };
-
-  // ================= ENHANCED MAP =================
-  function initMap() {
-    try {
-      // Create map with better styling
-      adminMap = window.L.map("adminMap", {
-        scrollWheelZoom: false
-      }).setView([20, 0], 2);
-
-      // Add styled tile layer (satellite/streets hybrid look)
-      window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 19
-      }).addTo(adminMap);
-
-      // Add scale control
-      window.L.control.scale().addTo(adminMap);
-
-      log('Map created');
-
-      // Click to add marker
-      adminMap.on("click", function(e) {
-        const label = prompt("Label (Origin, Transit, Destination):");
-        if (!label) return;
-
-        // Determine marker type based on label
-        let markerClass = 'custom-marker';
-        const lowerLabel = label.toLowerCase();
-        if (lowerLabel.includes('origin') || lowerLabel.includes('from')) {
-          markerClass += ' marker-origin';
-        } else if (lowerLabel.includes('destination') || lowerLabel.includes('to') || lowerLabel.includes('delivery')) {
-          markerClass += ' marker-destination';
-        } else {
-          markerClass += ' marker-transit';
-        }
-
-        // Create custom icon
-        const customIcon = window.L.divIcon({
-          className: markerClass,
-          html: `<div style="
-            background: ${lowerLabel.includes('origin') ? '#28a745' : lowerLabel.includes('destination') ? '#dc3545' : '#ffc107'};
-            color: ${lowerLabel.includes('transit') ? '#000' : '#fff'};
-            padding: 8px 12px;
-            border-radius: 20px;
-            font-weight: bold;
-            font-size: 12px;
-            border: 3px solid white;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-            white-space: nowrap;
-          ">${label}</div>`,
-          iconSize: null,
-          iconAnchor: [15, 30]
-        });
-
-        const marker = window.L.marker(e.latlng, {
-          draggable: true,
-          icon: customIcon
-        }).addTo(adminMap).bindPopup(label).openPopup();
-
-        const point = {
-          lat: e.latlng.lat,
-          lng: e.latlng.lng,
-          label: label,
-          marker: marker,
-          type: lowerLabel.includes('origin') ? 'origin' : lowerLabel.includes('destination') ? 'destination' : 'transit'
-        };
+    xhr.addEventListener('load', () => {
+      if (xhr.status === 200) {
+        const response = JSON.parse(xhr.responseText);
+        const videoUrl = response.secure_url;
         
-        routePoints.push(point);
-        mapMarkers.push(marker);
-
-        log('Added: ' + label);
-
-        // Update route line
-        updateRouteLine();
-
-        marker.on("dragend", function() {
-          const pos = marker.getLatLng();
-          point.lat = pos.lat;
-          point.lng = pos.lng;
-          updateRouteLine();
-        });
-      });
-
-      return adminMap;
-    } catch(e) {
-      showErr('Map init failed: ' + e.message);
-      return null;
-    }
-  }
-
-  // Update animated route line
-  function updateRouteLine() {
-    if (routeLine) {
-      adminMap.removeLayer(routeLine);
-    }
-    
-    if (routePoints.length < 2) return;
-
-    const latlngs = routePoints.map(p => [p.lat, p.lng]);
-    
-    // Create animated polyline
-    routeLine = window.L.polyline(latlngs, {
-      color: '#002147',
-      weight: 4,
-      opacity: 0.8,
-      dashArray: '10, 10',
-      lineCap: 'round'
-    }).addTo(adminMap);
-
-    // Fit bounds to show all points
-    adminMap.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
-  }
-
-  adminMap = initMap();
-
-  // ================= LOAD SHIPMENTS =================
-  function loadShipments() {
-    const q = query(collection(db, 'shipments'), orderBy('createdAt', 'desc'));
-    
-    onSnapshot(q, (snapshot) => {
-      shipments = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
-      log('Loaded ' + shipments.length + ' shipments');
-      renderTable();
-    }, (err) => {
-      showErr('Firebase error: ' + err.message);
+        // Save URL to hidden input
+        const videoUrlInput = document.getElementById('videoUrl');
+        if (videoUrlInput) videoUrlInput.value = videoUrl;
+        
+        // Update preview with uploaded video
+        showVideoPreview(videoUrl, true);
+        
+        // Update UI
+        const fileNameEl = document.getElementById('videoFileName');
+        if (fileNameEl) {
+          fileNameEl.innerHTML = `✅ Uploaded: <a href="${videoUrl}" target="_blank" style="color: #3498db;">${videoUrl.substring(0, 50)}...</a>`;
+        }
+        
+        showOk('Video uploaded successfully!');
+        log('Video uploaded: ' + videoUrl);
+        
+        // Reset progress
+        setTimeout(() => {
+          if (progressBar) progressBar.classList.remove('show');
+          if (progressFill) progressFill.style.width = '0%';
+        }, 1000);
+        
+      } else {
+        showErr('Upload failed: ' + xhr.statusText);
+        if (uploadBtn) uploadBtn.disabled = false;
+      }
     });
-  }
-
-  // ================= RENDER TABLE =================
-  function renderTable() {
-    if (!shipments.length) {
-      shipmentTable.innerHTML = '<tr><td colspan="6" style="text-align:center;">No shipments. Create one!</td></tr>';
-      return;
-    }
     
-    shipmentTable.innerHTML = shipments.map(s => `
+    xhr.addEventListener('error', () => {
+      showErr('Network error during upload. Please try again.');
+      if (uploadBtn) uploadBtn.disabled = false;
+    });
+    
+    xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`);
+    xhr.send(formData);
+    
+  } catch (err) {
+    showErr('Upload error: ' + err.message);
+    if (uploadBtn) uploadBtn.disabled = false;
+  }
+};
+
+window.clearVideo = function() {
+  selectedVideoFile = null;
+  
+  const videoUrlInput = document.getElementById('videoUrl');
+  const fileNameEl = document.getElementById('videoFileName');
+  const uploadBtn = document.getElementById('uploadVideoBtn');
+  const clearBtn = document.getElementById('clearVideoBtn');
+  const container = document.getElementById('videoPreviewContainer');
+  
+  if (videoUrlInput) videoUrlInput.value = '';
+  if (fileNameEl) fileNameEl.textContent = '';
+  if (uploadBtn) uploadBtn.disabled = true;
+  if (clearBtn) clearBtn.style.display = 'none';
+  
+  if (container) {
+    container.innerHTML = `
+      <div class="video-placeholder">
+        <div class="video-placeholder-icon">🎥</div>
+        <p>No video selected</p>
+        <p style="font-size: 12px; margin-top: 5px;">Upload a video of the item being packaged</p>
+      </div>
+    `;
+  }
+  
+  // Clear file input
+  const videoInput = document.getElementById('videoInput');
+  if (videoInput) videoInput.value = '';
+  
+  log('Video cleared');
+};
+
+// ===============================
+// LOAD SHIPMENTS
+// ===============================
+function loadShipments() {
+  const q = query(collection(db, 'shipments'), orderBy('createdAt', 'desc'));
+  
+  onSnapshot(q, (snapshot) => {
+    shipments = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+    log('Loaded ' + shipments.length + ' shipments');
+    renderTable();
+  }, (err) => {
+    showErr('Firebase error: ' + err.message);
+    log('Firebase error: ' + err.message, 'error');
+  });
+}
+
+// ===============================
+// RENDER TABLE
+// ===============================
+function renderTable() {
+  const tbody = document.getElementById('shipmentTable');
+  if (!tbody) return;
+  
+  if (!shipments.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:40px; color:#7f8c8d;">No shipments yet. Create one above!</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = shipments.map(s => {
+    const hasVideo = s.videoUrl && s.videoUrl.trim() !== '';
+    
+    return `
       <tr>
-        <td>${s.trackingNumber || 'N/A'}</td>
+        <td style="font-family: 'Courier New', monospace; font-weight: 600;">${s.trackingNumber || 'N/A'}</td>
         <td>${s.recipient || 'N/A'}</td>
-        <td>${s.status || '-'}</td>
-        <td>${s.lastUpdate || '-'}</td>
-        <td>${s.videoUrl ? '<a href="' + s.videoUrl + '" target="_blank">📹 View</a>' : '-'}</td>
         <td>
-          <button onclick="editShipment('${s.trackingNumber}')">Edit</button>
-          <button onclick="removeShipment('${s.trackingNumber}')" style="background:#dc3545;color:white;">Delete</button>
+          <span style="
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            background: ${getStatusColor(s.status)};
+            color: white;
+          ">${s.status || '-'}</span>
+        </td>
+        <td>${s.lastUpdate || '-'}</td>
+        <td>${hasVideo ? `<a href="${s.videoUrl}" target="_blank" class="video-link">📹 View</a>` : '-'}</td>
+        <td>
+          <div class="table-actions">
+            <button class="btn-edit" onclick="editShipment('${s.trackingNumber}')">Edit</button>
+            <button class="btn-delete-table" onclick="removeShipment('${s.trackingNumber}')">Delete</button>
+          </div>
         </td>
       </tr>
-    `).join('');
+    `;
+  }).join('');
+}
+
+function getStatusColor(status) {
+  const s = (status || '').toLowerCase();
+  if (s.includes('delivered')) return '#27ae60';
+  if (s.includes('transit')) return '#3498db';
+  if (s.includes('picked')) return '#f39c12';
+  if (s.includes('received')) return '#9b59b6';
+  return '#95a5a6';
+}
+
+// ===============================
+// SAVE SHIPMENT
+// ===============================
+window.saveShipment = async function() {
+  const recipientEl = document.getElementById("recipient");
+  const videoUrlEl = document.getElementById("videoUrl");
+  
+  // Validation
+  if (!recipientEl || !recipientEl.value.trim()) {
+    showErr('Please enter a receiver name');
+    recipientEl?.focus();
+    return;
+  }
+  
+  // Video is now required
+  const videoUrl = videoUrlEl ? videoUrlEl.value.trim() : '';
+  if (!videoUrl) {
+    showErr('Please upload a video of the shipment');
+    document.getElementById('videoInput')?.click();
+    return;
   }
 
-  // ================= SAVE (FIXED) =================
-  window.saveShipment = async function() {
-    const recipientEl = document.getElementById("recipient");
-    
-    if (!recipientEl || !recipientEl.value.trim()) {
-      showErr('Please enter a recipient name');
-      return;
-    }
-
-    // FIX: Properly get and trim videoUrl
-    const videoUrlEl = document.getElementById("videoUrl");
-    const videoUrlValue = videoUrlEl ? videoUrlEl.value.trim() : '';
-    
-    const data = {
-      trackingNumber: trackingInput.value.toUpperCase().trim(),
-      sender: document.getElementById("sender")?.value?.trim() || '',
-      recipient: recipientEl.value.trim(),
-      origin: document.getElementById("origin")?.value?.trim() || '',
-      destination: document.getElementById("destination")?.value?.trim() || '',
-      weight: document.getElementById("weight")?.value?.trim() || '',
-      status: document.getElementById("status")?.value?.trim() || '',
-      lastUpdate: document.getElementById("lastUpdate")?.value?.trim() || new Date().toLocaleString(),
-      route: routePoints.map(p => ({lat: p.lat, lng: p.lng, label: p.label, type: p.type})),
-      videoUrl: videoUrlValue,  // FIX: Use trimmed value
-      updatedAt: new Date().toISOString()
-    };
-
-    // FIX: Case-insensitive comparison for existing shipment
-    const exists = shipments.find(s => 
-      s.trackingNumber && s.trackingNumber.toUpperCase() === data.trackingNumber.toUpperCase()
-    );
-
-    try {
-      if (exists) {
-        await shipmentService.update(data.trackingNumber, data);
-        showOk('Shipment updated successfully!');
-      } else {
-        data.createdAt = new Date().toISOString();
-        await shipmentService.create(data);
-        showOk('Shipment created! Tracking: ' + data.trackingNumber);
-      }
-      
-      // Generate new tracking number for next entry
-      trackingInput.value = generateTrackingNumber();
-      resetForm();
-    } catch(err) {
-      showErr('Save failed: ' + err.message);
-      console.error('Save error:', err);
-    }
+  const data = {
+    trackingNumber: document.getElementById("tracking").value.toUpperCase().trim(),
+    sender: document.getElementById("sender")?.value?.trim() || '',
+    recipient: recipientEl.value.trim(),
+    origin: document.getElementById("origin")?.value?.trim() || '',
+    destination: document.getElementById("destination")?.value?.trim() || '',
+    weight: document.getElementById("weight")?.value?.trim() || '',
+    status: document.getElementById("status")?.value?.trim() || 'Package Received',
+    lastUpdate: document.getElementById("lastUpdate")?.value?.trim() || new Date().toLocaleString(),
+    estDelivery: document.getElementById("estDelivery")?.value?.trim() || '',
+    videoUrl: videoUrl,
+    updatedAt: new Date().toISOString()
   };
 
-  // ================= DELETE =================
-  window.removeShipment = async function(tn) {
-    if (!confirm('Delete shipment ' + tn + '?')) return;
-    try {
-      await shipmentService.delete(tn);
-      showOk('Shipment deleted');
-    } catch(e) {
-      showErr('Delete failed: ' + e.message);
-    }
-  };
+  // Check if exists
+  const exists = shipments.find(s => 
+    s.trackingNumber && s.trackingNumber.toUpperCase() === data.trackingNumber.toUpperCase()
+  );
 
-  // ================= EDIT (FIXED) =================
-  window.editShipment = function(tn) {
-    const s = shipments.find(x => x.trackingNumber === tn);
-    if (!s) {
-      showErr('Shipment not found: ' + tn);
-      return;
-    }
-
-    // FIX: Properly get all form elements
-    trackingInput.value = s.trackingNumber;
-    document.getElementById("sender").value = s.sender || '';
-    document.getElementById("recipient").value = s.recipient || '';
-    document.getElementById("origin").value = s.origin || '';
-    document.getElementById("destination").value = s.destination || '';
-    document.getElementById("weight").value = s.weight || '';
-    document.getElementById("status").value = s.status || '';
-    document.getElementById("lastUpdate").value = s.lastUpdate || '';
-    
-    // FIX: Properly handle video URL when editing
-    const videoUrlEl = document.getElementById("videoUrl");
-    const videoPreviewEl = document.getElementById("videoPreview");
-    const videoFileNameEl = document.getElementById("videoFileName");
-    const uploadVideoBtnEl = document.getElementById("uploadVideoBtn");
-    
-    if (s.videoUrl && s.videoUrl.trim() !== '') {
-      // Has existing video
-      videoUrlEl.value = s.videoUrl;
-      videoPreviewEl.innerHTML = `
-        <p><strong>Current Video:</strong></p>
-        <video controls src="${s.videoUrl}" style="max-width:100%; max-height:200px;"></video>
-        <p style="font-size:12px; color:#666; margin-top:5px;">${s.videoUrl}</p>
-      `;
-      videoFileNameEl.textContent = "Video already uploaded";
-      uploadVideoBtnEl.disabled = true;
-      selectedVideoFile = null;
+  try {
+    if (exists) {
+      await shipmentService.update(data.trackingNumber, data);
+      showOk('Shipment updated successfully!');
     } else {
-      // No video - clear fields
-      videoUrlEl.value = '';
-      videoPreviewEl.innerHTML = '';
-      videoFileNameEl.textContent = '';
-      uploadVideoBtnEl.disabled = true;
-      selectedVideoFile = null;
-    }
-
-    // Clear and reload map markers
-    clearMapMarkers();
-
-    if (s.route && adminMap) {
-      s.route.forEach((p, index) => {
-        if (p.lat != null && p.lng != null) {
-          let markerClass = 'custom-marker marker-transit';
-          if (p.type === 'origin') markerClass = 'custom-marker marker-origin';
-          if (p.type === 'destination') markerClass = 'custom-marker marker-destination';
-
-          const customIcon = window.L.divIcon({
-            className: markerClass,
-            html: `<div style="
-              background: ${p.type === 'origin' ? '#28a745' : p.type === 'destination' ? '#dc3545' : '#ffc107'};
-              color: ${p.type === 'transit' ? '#000' : '#fff'};
-              padding: 8px 12px;
-              border-radius: 20px;
-              font-weight: bold;
-              font-size: 12px;
-              border: 3px solid white;
-              box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-              white-space: nowrap;
-            ">${p.label || 'Point ' + (index + 1)}</div>`,
-            iconSize: null,
-            iconAnchor: [15, 30]
-          });
-
-          const m = window.L.marker([p.lat, p.lng], {
-            draggable: true,
-            icon: customIcon
-          }).addTo(adminMap).bindPopup(p.label || 'Point');
-
-          const point = {...p, marker: m};
-          routePoints.push(point);
-          mapMarkers.push(m);
-
-          m.on("dragend", function() {
-            const pos = m.getLatLng();
-            point.lat = pos.lat;
-            point.lng = pos.lng;
-            updateRouteLine();
-          });
-        }
-      });
-
-      updateRouteLine();
+      data.createdAt = new Date().toISOString();
+      await shipmentService.create(data);
+      showOk('Shipment created! Tracking: ' + data.trackingNumber);
     }
     
-    // Scroll to form
-    document.querySelector('.form-box').scrollIntoView({ behavior: 'smooth' });
+    // Reset form for next entry
+    resetForm();
     
-    log('Loaded for edit: ' + tn);
-    showOk('Editing shipment: ' + tn);
-  };
+  } catch(err) {
+    showErr('Save failed: ' + err.message);
+    console.error('Save error:', err);
+  }
+};
 
-  // ================= HELPERS =================
-  function clearMapMarkers() {
-    if (!adminMap) return;
-    
-    mapMarkers.forEach(m => {
-      if (m) adminMap.removeLayer(m);
-    });
-    mapMarkers = [];
-    routePoints = [];
-    
-    if (routeLine) {
-      adminMap.removeLayer(routeLine);
-      routeLine = null;
-    }
+// ===============================
+// DELETE SHIPMENT
+// ===============================
+window.removeShipment = async function(tn) {
+  if (!confirm('Delete shipment ' + tn + '? This cannot be undone.')) return;
+  
+  try {
+    await shipmentService.delete(tn);
+    showOk('Shipment deleted');
+  } catch(e) {
+    showErr('Delete failed: ' + e.message);
+  }
+};
+
+// ===============================
+// EDIT SHIPMENT
+// ===============================
+window.editShipment = function(tn) {
+  const s = shipments.find(x => x.trackingNumber === tn);
+  if (!s) {
+    showErr('Shipment not found: ' + tn);
+    return;
   }
 
-  function resetForm() {
-    trackingInput.value = generateTrackingNumber();
-    
-    ["sender", "recipient", "origin", "destination", "weight", "status", "lastUpdate"].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.value = '';
-    });
-    
-    // Clear video fields completely
-    const videoUrlEl = document.getElementById("videoUrl");
-    const videoPreviewEl = document.getElementById("videoPreview");
-    const videoFileNameEl = document.getElementById("videoFileName");
-    const uploadVideoBtnEl = document.getElementById("uploadVideoBtn");
-    
-    if (videoUrlEl) videoUrlEl.value = '';
-    if (videoPreviewEl) videoPreviewEl.innerHTML = '';
-    if (videoFileNameEl) videoFileNameEl.textContent = '';
-    if (uploadVideoBtnEl) uploadVideoBtnEl.disabled = true;
-    selectedVideoFile = null;
-    
-    clearMapMarkers();
-    
-    if (adminMap) {
-      adminMap.setView([20, 0], 2);
+  // Set tracking number
+  document.getElementById("tracking").value = s.trackingNumber;
+  const display = document.getElementById("trackingDisplay");
+  if (display) display.textContent = s.trackingNumber;
+  
+  // Fill form fields
+  document.getElementById("sender").value = s.sender || '';
+  document.getElementById("recipient").value = s.recipient || '';
+  document.getElementById("origin").value = s.origin || '';
+  document.getElementById("destination").value = s.destination || '';
+  document.getElementById("weight").value = s.weight || '';
+  document.getElementById("status").value = s.status || '';
+  document.getElementById("lastUpdate").value = s.lastUpdate || '';
+  document.getElementById("estDelivery").value = s.estDelivery || '';
+  
+  // Handle video
+  const videoUrlEl = document.getElementById("videoUrl");
+  const fileNameEl = document.getElementById("videoFileName");
+  
+  if (s.videoUrl && s.videoUrl.trim()) {
+    // Has existing video
+    if (videoUrlEl) videoUrlEl.value = s.videoUrl;
+    showVideoPreview(s.videoUrl, true);
+    if (fileNameEl) {
+      fileNameEl.innerHTML = `Current: <a href="${s.videoUrl}" target="_blank" style="color: #3498db;">View Video</a>`;
     }
+  } else {
+    // No video
+    clearVideo();
   }
+  
+  // Scroll to top
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  
+  showOk('Editing shipment: ' + tn);
+  log('Loaded for edit: ' + tn);
+};
 
-  // Start
-  loadShipments();
-  log('App ready');
-});
+// ===============================
+// RESET FORM
+// ===============================
+window.resetForm = function() {
+  // Generate new tracking
+  generateNewTracking();
+  
+  // Clear text inputs
+  ["sender", "recipient", "origin", "destination", "weight", "lastUpdate", "estDelivery"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  
+  // Reset status to empty
+  const statusEl = document.getElementById("status");
+  if (statusEl) statusEl.value = '';
+  
+  // Clear video completely
+  clearVideo();
+  
+  showOk('Form reset - Ready for new shipment');
+  log('Form reset');
+};

@@ -1,33 +1,30 @@
-// track.js - Firebase CDN version with video and enhanced map
+// track.js - Firebase CDN version with new design (no map, video centered)
 import { shipmentService, chatService } from './firebase.js';
 
 // ===============================
-// GET TRACKING NUMBER
+// GET TRACKING NUMBER (UNCHANGED)
 // ===============================
 const params = new URLSearchParams(window.location.search);
 const tn = params.get("tn")?.trim().toUpperCase();
 
 if (!tn) {
-  document.body.innerHTML = "<h2>No tracking number provided</h2>";
+  document.body.innerHTML = `
+    <div class="error-state">
+      <h2>No tracking number provided</h2>
+      <p>Please provide a tracking number in the URL: ?tn=YOUR_TRACKING_NUMBER</p>
+    </div>
+  `;
   throw new Error("Tracking number missing");
 }
 
 // ===============================
-// CHAT VARIABLES
+// CHAT VARIABLES (UNCHANGED)
 // ===============================
 let conversationId = null;
 let unsubscribeMessages = null;
 
 // DOM Elements
-const chatFab = document.getElementById("chatFab");
-const chatWindow = document.getElementById("chatWindow");
-const chatCloseBtn = document.getElementById("chatCloseBtn");
-const chatInput = document.getElementById("chatInput");
-const chatSendBtn = document.getElementById("chatSendBtn");
-const chatMessages = document.getElementById("chatMessages");
-const chatBody = document.getElementById("chatBody");
-const chatBadge = document.getElementById("chatBadge");
-const chatTrackingNumber = document.getElementById("chatTrackingNumber");
+const trackingContainer = document.getElementById("trackingContainer");
 
 // ===============================
 // LOAD SHIPMENT
@@ -37,169 +34,235 @@ async function loadShipment() {
     const shipment = await shipmentService.getByTrackingNumber(tn);
     
     if (!shipment) {
-      document.body.innerHTML = "<h2>Shipment not found</h2>";
+      trackingContainer.innerHTML = `
+        <div class="error-state">
+          <h2>Shipment not found</h2>
+          <p>Tracking number <strong>${tn}</strong> does not exist in our system.</p>
+        </div>
+      `;
       return;
     }
 
-    document.getElementById("tn").textContent = shipment.trackingNumber || "N/A";
-    document.getElementById("sender").textContent = shipment.sender || "N/A";
-    document.getElementById("receiver").textContent = shipment.recipient || "N/A";
-    document.getElementById("origin").textContent = shipment.origin || "N/A";
-    document.getElementById("destination").textContent = shipment.destination || "N/A";
-    document.getElementById("weight").textContent = shipment.weight || "N/A";
-    document.getElementById("status").textContent = shipment.status || "N/A";
-    document.getElementById("lastUpdate").textContent = shipment.lastUpdate || "N/A";
-
-    // FIX: Show video if exists - check for valid URL string
-    const videoSection = document.getElementById("videoSection");
-    const video = document.getElementById("shipmentVideo");
-    
-    // Reset video section first
-    if (videoSection) {
-      videoSection.style.display = "none";
-    }
-    if (video) {
-      video.src = "";
-      video.load();
-    }
-    
-    // Check if videoUrl exists and is a valid non-empty string
-    const videoUrl = shipment.videoUrl;
-    if (videoUrl && typeof videoUrl === 'string' && videoUrl.trim() !== "" && videoUrl.startsWith('http')) {
-      if (videoSection && video) {
-        video.src = videoUrl;
-        video.load(); // Force reload
-        videoSection.style.display = "block";
-      }
-    }
-
-    initMap(shipment);
+    renderTrackingPage(shipment);
     initializeChat();
 
   } catch (err) {
     console.error(err);
-    document.body.innerHTML = "<h2>Error loading shipment</h2>";
+    trackingContainer.innerHTML = `
+      <div class="error-state">
+        <h2>Error loading shipment</h2>
+        <p>Please try again later.</p>
+      </div>
+    `;
   }
 }
 
 // ===============================
-// ENHANCED MAP
+// RENDER TRACKING PAGE (NEW DESIGN)
 // ===============================
-function initMap(shipment) {
-  const map = L.map("map", {
-    scrollWheelZoom: false
-  }).setView([20, 0], 2);
-
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: '© OpenStreetMap contributors',
-    maxZoom: 19
-  }).addTo(map);
-
-  L.control.scale().addTo(map);
-
-  if (!shipment.route || shipment.route.length === 0) {
-    // Default view if no route
-    map.setView([6.5244, 3.3792], 4);
-    return;
-  }
-
-  const markers = [];
+function renderTrackingPage(shipment) {
+  const videoUrl = shipment.videoUrl;
+  const hasMedia = videoUrl && typeof videoUrl === 'string' && videoUrl.trim() !== "" && videoUrl.startsWith('http');
   
-  shipment.route.forEach((r, index) => {
-    // Determine marker style
-    let bgColor = '#ffc107';
-    let textColor = '#000';
-    let label = r.label || `Point ${index + 1}`;
-    
-    if (r.type === 'origin' || label.toLowerCase().includes('origin')) {
-      bgColor = '#28a745';
-      textColor = '#fff';
-    } else if (r.type === 'destination' || label.toLowerCase().includes('destination')) {
-      bgColor = '#dc3545';
-      textColor = '#fff';
-    }
-
-    const customIcon = L.divIcon({
-      className: 'custom-marker',
-      html: `<div style="
-        background: ${bgColor};
-        color: ${textColor};
-        padding: 8px 12px;
-        border-radius: 20px;
-        font-weight: bold;
-        font-size: 12px;
-        border: 3px solid white;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-        white-space: nowrap;
-      ">${label}</div>`,
-      iconSize: null,
-      iconAnchor: [15, 30]
-    });
-
-    const marker = L.marker([r.lat, r.lng], { icon: customIcon })
-      .addTo(map)
-      .bindPopup(`<strong>${label}</strong><br>Lat: ${r.lat.toFixed(4)}<br>Lng: ${r.lng.toFixed(4)}`);
-    
-    markers.push(marker);
-  });
-
-  // Draw animated route line
-  if (shipment.route.length >= 2) {
-    const latlngs = shipment.route.map(r => [r.lat, r.lng]);
-    
-    // Animated line
-    const routeLine = L.polyline(latlngs, {
-      color: '#002147',
-      weight: 4,
-      opacity: 0.8,
-      dashArray: '10, 10',
-      lineCap: 'round'
-    }).addTo(map);
-
-    // Add moving marker animation
-    let currentIndex = 0;
-    const movingMarker = L.circleMarker(latlngs[0], {
-      radius: 8,
-      fillColor: '#002147',
-      color: '#fff',
-      weight: 2,
-      opacity: 1,
-      fillOpacity: 0.9
-    }).addTo(map);
-
-    // Animate along route
-    function animateMarker() {
-      currentIndex = (currentIndex + 1) % latlngs.length;
-      movingMarker.setLatLng(latlngs[currentIndex]);
-      setTimeout(animateMarker, 2000);
-    }
-    
-    // Start animation after delay
-    setTimeout(animateMarker, 1000);
+  // Determine status class
+  let statusClass = '';
+  const statusLower = (shipment.status || '').toLowerCase();
+  if (statusLower.includes('delivered')) {
+    statusClass = 'delivered';
+  } else if (statusLower.includes('transit') || statusLower.includes('shipped')) {
+    statusClass = 'in-transit';
   }
-
-  // Fit bounds
-  if (markers.length > 0) {
-    const group = new L.featureGroup(markers);
-    map.fitBounds(group.getBounds().pad(0.1));
-  }
+  
+  // Build journey timeline (mock data based on status, or use route if available)
+  const journeyHTML = buildJourneyHTML(shipment);
+  
+  // Build media section (centered)
+  const mediaHTML = hasMedia ? `
+    <div class="media-section">
+      <div class="media-title">
+        <span>📹</span>
+        <span>Shipment Video</span>
+      </div>
+      <div class="media-container">
+        <video controls poster="https://via.placeholder.com/600x400/0a2a66/ffffff?text=Shipment+Video">
+          <source src="${videoUrl}" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+      </div>
+    </div>
+  ` : '';
+  
+  trackingContainer.innerHTML = `
+    <!-- Tracking Number Header -->
+    <div class="tracking-header">
+      <span class="tracking-label">TRACKING CODE</span>
+      <div class="tracking-number">${shipment.trackingNumber || tn}</div>
+      <div class="status-badge ${statusClass}">
+        ${shipment.status || 'Processing'}
+      </div>
+    </div>
+    
+    <!-- Media Section (Centered) -->
+    ${mediaHTML}
+    
+    <!-- Shipment Details -->
+    <div class="details-section">
+      <div class="section-title">
+        <span>📦</span>
+        <span>Shipment Details</span>
+      </div>
+      <div class="details-grid">
+        <div class="detail-item">
+          <span class="detail-label">From</span>
+          <span class="detail-value">${shipment.origin || 'N/A'}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">To</span>
+          <span class="detail-value">${shipment.destination || 'N/A'}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">Sender</span>
+          <span class="detail-value">${shipment.sender || 'N/A'}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">Receiver</span>
+          <span class="detail-value">${shipment.recipient || 'N/A'}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">Weight</span>
+          <span class="detail-value">${shipment.weight || 'N/A'}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">Est. Delivery</span>
+          <span class="detail-value">${calculateEstDelivery(shipment)}</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Journey Timeline -->
+    <div class="journey-section">
+      <div class="section-title">
+        <span>🚚</span>
+        <span>Shipment Journey</span>
+      </div>
+      <ul class="journey-list">
+        ${journeyHTML}
+      </ul>
+    </div>
+    
+    <!-- Last Update -->
+    <div class="details-section" style="margin-top: 20px;">
+      <div class="detail-item">
+        <span class="detail-label">Last Updated</span>
+        <span class="detail-value" style="color: #e74c3c;">${shipment.lastUpdate || 'Just now'}</span>
+      </div>
+    </div>
+  `;
 }
 
 // ===============================
-// CHAT
+// BUILD JOURNEY TIMELINE
+// ===============================
+function buildJourneyHTML(shipment) {
+  // If route exists, use it; otherwise create default journey based on status
+  const route = shipment.route || [];
+  const status = (shipment.status || '').toLowerCase();
+  
+  // Define journey steps
+  const steps = [
+    { title: 'Package Picked Up', location: shipment.origin || 'Origin', key: 'picked' },
+    { title: 'Departed Origin', location: `${shipment.origin || 'Origin'} Intl Airport`, key: 'departed' },
+    { title: 'In Transit - Hub', location: 'Sorting Facility', key: 'transit' },
+    { title: 'Arrived in Destination Country', location: shipment.destination || 'Destination', key: 'arrived' },
+    { title: 'Out for Delivery', location: shipment.destination || 'Destination', key: 'out' },
+    { title: 'Delivered', location: shipment.destination || 'Destination', key: 'delivered' }
+  ];
+  
+  // Determine which step is active based on status
+  let activeIndex = 0;
+  if (status.includes('delivered')) activeIndex = 5;
+  else if (status.includes('out for delivery')) activeIndex = 4;
+  else if (status.includes('arrived') || status.includes('customs')) activeIndex = 3;
+  else if (status.includes('transit')) activeIndex = 2;
+  else if (status.includes('departed')) activeIndex = 1;
+  
+  return steps.map((step, index) => {
+    let itemClass = '';
+    if (index < activeIndex) itemClass = 'completed';
+    else if (index === activeIndex) itemClass = 'active';
+    
+    // Use route data if available
+    let location = step.location;
+    let time = '';
+    
+    if (route[index]) {
+      location = route[index].label || location;
+      if (route[index].time || route[index].timestamp) {
+        time = route[index].time || route[index].timestamp;
+      }
+    }
+    
+    // For active step, show last update time
+    if (index === activeIndex && shipment.lastUpdate) {
+      time = shipment.lastUpdate;
+    }
+    
+    return `
+      <li class="journey-item ${itemClass}">
+        <div class="journey-dot"></div>
+        <div class="journey-title">${step.title}</div>
+        <div class="journey-location">${location}</div>
+        ${time ? `<div class="journey-time">Last updated: ${time}</div>` : ''}
+      </li>
+    `;
+  }).join('');
+}
+
+// ===============================
+// CALCULATE EST DELIVERY
+// ===============================
+function calculateEstDelivery(shipment) {
+  // If already has est delivery, use it
+  if (shipment.estDelivery) return shipment.estDelivery;
+  
+  // Calculate based on created date + 7 days
+  const created = shipment.createdAt?.toDate ? shipment.createdAt.toDate() : new Date();
+  const est = new Date(created);
+  est.setDate(est.getDate() + 7);
+  
+  return est.toLocaleDateString('en-US', { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+}
+
+// ===============================
+// CHAT (UNCHANGED FUNCTIONALITY)
 // ===============================
 async function initializeChat() {
-  chatTrackingNumber.textContent = tn;
+  const chatTrackingNumber = document.getElementById("chatTrackingNumber");
+  const chatFab = document.getElementById("chatFab");
+  const chatWindow = document.getElementById("chatWindow");
+  const chatCloseBtn = document.getElementById("chatCloseBtn");
+  const chatInput = document.getElementById("chatInput");
+  const chatSendBtn = document.getElementById("chatSendBtn");
+  const chatMessages = document.getElementById("chatMessages");
+  const chatBody = document.getElementById("chatBody");
+  const chatBadge = document.getElementById("chatBadge");
 
-  chatFab.addEventListener("click", toggleChat);
-  chatCloseBtn.addEventListener("click", closeChat);
-  chatSendBtn.addEventListener("click", sendMessage);
+  if (chatTrackingNumber) chatTrackingNumber.textContent = tn;
 
-  chatInput.addEventListener("keydown", e => {
-    if (e.key === "Enter") {
-      sendMessage();
-    }
-  });
+  if (chatFab) chatFab.addEventListener("click", toggleChat);
+  if (chatCloseBtn) chatCloseBtn.addEventListener("click", closeChat);
+  if (chatSendBtn) chatSendBtn.addEventListener("click", sendMessage);
+
+  if (chatInput) {
+    chatInput.addEventListener("keydown", e => {
+      if (e.key === "Enter") sendMessage();
+    });
+  }
 
   try {
     const conversation = await chatService.getOrCreateConversation(tn);
@@ -213,84 +276,82 @@ async function initializeChat() {
   } catch (err) {
     console.error("Chat initialization error:", err);
   }
-}
 
-function renderMessages(messages) {
-  if (!messages.length) {
-    chatMessages.innerHTML = "";
-    return;
-  }
+  function renderMessages(messages) {
+    if (!messages.length) {
+      if (chatMessages) chatMessages.innerHTML = "";
+      return;
+    }
 
-  chatMessages.innerHTML = messages.map(msg => {
-    const isUser = msg.sender === "user";
-    const time = msg.createdAt?.toDate 
-      ? msg.createdAt.toDate().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) 
-      : '';
+    const html = messages.map(msg => {
+      const isUser = msg.sender === "user";
+      const time = msg.createdAt?.toDate 
+        ? msg.createdAt.toDate().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) 
+        : '';
 
-    return `
-    <div class="message ${isUser ? "user" : "admin"}">
-        <div class="message-content">
-        ${escapeHtml(msg.content)}
+      return `
+        <div class="message ${isUser ? "user" : "admin"}">
+          <div class="message-content">${escapeHtml(msg.content)}</div>
+          <div class="message-time">${time}</div>
         </div>
-        <div class="message-time">
-        ${time}
-        </div>
-    </div>
-    `;
-  }).join("");
+      `;
+    }).join("");
 
-  scrollBottom();
-}
-
-async function sendMessage() {
-  const content = chatInput.value.trim();
-  if (!content || !conversationId) return;
-
-  chatInput.value = "";
-
-  try {
-    await chatService.sendMessage(conversationId, content, "user");
-  } catch (err) {
-    console.error("Send error:", err);
+    if (chatMessages) chatMessages.innerHTML = html;
+    scrollBottom();
   }
-}
 
-function toggleChat() {
-  if (chatWindow.classList.contains("open")) {
-    closeChat();
-  } else {
-    openChat();
+  async function sendMessage() {
+    if (!chatInput) return;
+    const content = chatInput.value.trim();
+    if (!content || !conversationId) return;
+
+    chatInput.value = "";
+
+    try {
+      await chatService.sendMessage(conversationId, content, "user");
+    } catch (err) {
+      console.error("Send error:", err);
+    }
   }
-}
 
-function openChat() {
-  chatWindow.classList.add("open");
-  setTimeout(() => {
-    chatInput.focus();
-  }, 200);
-  
-  if (conversationId) {
-    chatService.markAsRead(conversationId);
+  function toggleChat() {
+    if (chatWindow.classList.contains("open")) {
+      closeChat();
+    } else {
+      openChat();
+    }
   }
-}
 
-function closeChat() {
-  chatWindow.classList.remove("open");
-}
-
-function updateUnread(messages) {
-  const unread = messages.filter(m => m.sender === "admin" && !m.read);
-  
-  if (unread.length && !chatWindow.classList.contains("open")) {
-    chatBadge.textContent = unread.length;
-    chatBadge.classList.add("show");
-  } else {
-    chatBadge.classList.remove("show");
+  function openChat() {
+    chatWindow.classList.add("open");
+    setTimeout(() => {
+      if (chatInput) chatInput.focus();
+    }, 200);
+    
+    if (conversationId) {
+      chatService.markAsRead(conversationId);
+    }
   }
-}
 
-function scrollBottom() {
-  chatBody.scrollTop = chatBody.scrollHeight;
+  function closeChat() {
+    chatWindow.classList.remove("open");
+  }
+
+  function updateUnread(messages) {
+    const unread = messages.filter(m => m.sender === "admin" && !m.read);
+    
+    if (unread.length && !chatWindow.classList.contains("open")) {
+      chatBadge.textContent = unread.length;
+      chatBadge.classList.add("show");
+    } else {
+      chatBadge.classList.remove("show");
+    }
+  }
+
+  function scrollBottom() {
+    if (chatBody) chatBody.scrollTop = chatBody.scrollHeight;
+  }
 }
 
 function escapeHtml(text) {
@@ -300,10 +361,12 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// Cleanup
 window.addEventListener('beforeunload', () => {
   if (unsubscribeMessages) {
     unsubscribeMessages();
   }
 });
 
+// Start
 loadShipment();
