@@ -18,43 +18,81 @@ document.addEventListener("DOMContentLoaded", function () {
   let routePoints = [];
   let shipments = [];
   let unsubscribeShipments = null;
+  let mapMarkers = [];
+  let adminMap = null;
 
   // Generate tracking number
   function generateTrackingNumber() {
     return "EC-" + Math.random().toString(36).substring(2, 10).toUpperCase();
   }
 
-  trackingInput.value = generateTrackingNumber();
+  // Set initial tracking number
+  if (trackingInput) {
+    trackingInput.value = generateTrackingNumber();
+    console.log("Tracking number set:", trackingInput.value);
+  } else {
+    console.error("Tracking input not found!");
+  }
 
   // ================= MAP =================
-  const adminMap = L.map("adminMap").setView([6.5244, 3.3792], 4);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(adminMap);
+  function initMap() {
+    const mapDiv = document.getElementById("adminMap");
+    if (!mapDiv) {
+      console.error("Map container #adminMap not found!");
+      return null;
+    }
 
-  adminMap.on("click", function (e) {
-    const label = prompt("Label (Origin, Transit, Destination)");
-    if (!label) return;
+    // Check if Leaflet is loaded
+    if (typeof L === 'undefined') {
+      console.error("Leaflet not loaded! Check script tag.");
+      return null;
+    }
 
-    const marker = L.marker(e.latlng, { draggable: true })
-      .addTo(adminMap)
-      .bindPopup(label)
-      .openPopup();
+    const map = L.map("adminMap").setView([6.5244, 3.3792], 4);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
 
-    routePoints.push({ lat: e.latlng.lat, lng: e.latlng.lng, label, marker });
+    // Click to add marker
+    map.on("click", function (e) {
+      const label = prompt("Label (Origin, Transit, Destination):");
+      if (!label) return;
 
-    marker.on("dragend", () => {
-      const p = routePoints.find(r => r.marker === marker);
-      if (p) {
-        p.lat = marker.getLatLng().lat;
-        p.lng = marker.getLatLng().lng;
-      }
+      const marker = L.marker(e.latlng, { draggable: true })
+        .addTo(map)
+        .bindPopup(label)
+        .openPopup();
+
+      const point = { 
+        lat: e.latlng.lat, 
+        lng: e.latlng.lng, 
+        label: label,
+        marker: marker 
+      };
+      routePoints.push(point);
+      mapMarkers.push(marker);
+
+      marker.on("dragend", function() {
+        const newLatLng = marker.getLatLng();
+        point.lat = newLatLng.lat;
+        point.lng = newLatLng.lng;
+        console.log("Marker moved to:", point.lat, point.lng);
+      });
     });
-  });
 
-  // ================= LOAD SHIPMENTS (Real-time) =================
+    console.log("Map initialized successfully");
+    return map;
+  }
+
+  adminMap = initMap();
+
+  // ================= LOAD SHIPMENTS =================
   function loadShipments() {
     const q = query(collection(db, 'shipments'), orderBy('createdAt', 'desc'));
     unsubscribeShipments = onSnapshot(q, (snapshot) => {
-      shipments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      shipments = snapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+      }));
+      console.log("Shipments loaded:", shipments.length);
       renderTable();
     }, (err) => {
       console.error("Error loading shipments:", err);
@@ -68,6 +106,13 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
 
+    // Build clean route data (no marker objects)
+    const routeData = routePoints.map(p => ({ 
+      lat: p.lat, 
+      lng: p.lng, 
+      label: p.label 
+    }));
+
     const shipmentData = {
       trackingNumber: trackingInput.value.toUpperCase(),
       sender: sender.value,
@@ -77,12 +122,14 @@ document.addEventListener("DOMContentLoaded", function () {
       weight: weight.value,
       status: status.value,
       lastUpdate: lastUpdate.value || new Date().toLocaleString(),
-      route: routePoints.map(p => ({ lat: p.lat, lng: p.lng, label: p.label }))
+      route: routeData
     };
 
     const exists = shipments.find(s => s.trackingNumber === shipmentData.trackingNumber);
 
     try {
+      console.log("Saving shipment:", shipmentData);
+      
       if (exists) {
         await shipmentService.update(shipmentData.trackingNumber, shipmentData);
       } else {
@@ -92,7 +139,7 @@ document.addEventListener("DOMContentLoaded", function () {
       alert("Shipment saved successfully!");
       resetForm();
     } catch (err) {
-      console.error(err);
+      console.error("Save error:", err);
       alert("Error saving shipment: " + err.message);
     }
   };
@@ -111,9 +158,15 @@ document.addEventListener("DOMContentLoaded", function () {
   // ================= EDIT =================
   window.editShipment = function (tn) {
     const s = shipments.find(x => x.trackingNumber === tn);
-    if (!s) return;
+    if (!s) {
+      console.error("Shipment not found:", tn);
+      return;
+    }
 
-    trackingInput.value = s.trackingNumber;
+    console.log("Editing shipment:", s);
+
+    // Set form values
+    trackingInput.value = s.trackingNumber || generateTrackingNumber();
     sender.value = s.sender || '';
     recipient.value = s.recipient || '';
     origin.value = s.origin || '';
@@ -122,61 +175,105 @@ document.addEventListener("DOMContentLoaded", function () {
     status.value = s.status || '';
     lastUpdate.value = s.lastUpdate || '';
 
-    // Reset map markers
-    routePoints = [];
-    adminMap.eachLayer(l => {
-      if (l instanceof L.Marker) adminMap.removeLayer(l);
-    });
+    // Clear existing markers
+    clearMapMarkers();
 
-    if (s.route) {
-      s.route.forEach(p => {
-        const m = L.marker([p.lat, p.lng], { draggable: true })
-          .addTo(adminMap)
-          .bindPopup(p.label);
-        routePoints.push({ ...p, marker: m });
+    // Load route markers
+    if (s.route && Array.isArray(s.route) && adminMap) {
+      s.route.forEach((p, index) => {
+        if (p.lat != null && p.lng != null) {
+          const m = L.marker([p.lat, p.lng], { draggable: true })
+            .addTo(adminMap)
+            .bindPopup(p.label || `Point ${index + 1}`);
+          
+          const point = { 
+            lat: p.lat, 
+            lng: p.lng, 
+            label: p.label || `Point ${index + 1}`,
+            marker: m 
+          };
+          routePoints.push(point);
+          mapMarkers.push(m);
+
+          m.on("dragend", function() {
+            const newLatLng = m.getLatLng();
+            point.lat = newLatLng.lat;
+            point.lng = newLatLng.lng;
+          });
+        }
       });
 
-      if (s.route.length) adminMap.fitBounds(s.route.map(r => [r.lat, r.lng]));
+      // Fit bounds
+      if (routePoints.length > 0) {
+        const bounds = routePoints.map(p => [p.lat, p.lng]);
+        adminMap.fitBounds(bounds);
+      }
     }
   };
 
-  // ================= TABLE =================
-  function renderTable() {
-    shipmentTable.innerHTML = "";
-    shipments.forEach(s => {
-      shipmentTable.innerHTML += `
-        <tr>
-          <td>${s.trackingNumber}</td>
-          <td>${s.recipient || "N/A"}</td>
-          <td>${s.status || ""}</td>
-          <td>${s.lastUpdate || ""}</td>
-          <td>
-            <button onclick="editShipment('${s.trackingNumber}')">Edit</button>
-            <button onclick="removeShipment('${s.trackingNumber}')">Delete</button>
-          </td>
-        </tr>`;
+  // ================= HELPERS =================
+  function clearMapMarkers() {
+    if (!adminMap) return;
+    
+    mapMarkers.forEach(m => {
+      if (m) adminMap.removeLayer(m);
     });
+    mapMarkers = [];
+    routePoints = [];
   }
 
-  // ================= RESET =================
   function resetForm() {
     trackingInput.value = generateTrackingNumber();
-    ["sender", "recipient", "origin", "destination", "weight", "status", "lastUpdate"].forEach(id => {
+    
+    const fields = ["sender", "recipient", "origin", "destination", "weight", "status", "lastUpdate"];
+    fields.forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = "";
     });
-    routePoints = [];
-    adminMap.eachLayer(l => {
-      if (l instanceof L.Marker) adminMap.removeLayer(l);
+    
+    clearMapMarkers();
+    
+    if (adminMap) {
+      adminMap.setView([6.5244, 3.3792], 4);
+    }
+  }
+
+  function renderTable() {
+    if (!shipmentTable) {
+      console.error("shipmentTable not found!");
+      return;
+    }
+    
+    shipmentTable.innerHTML = "";
+    
+    if (shipments.length === 0) {
+      shipmentTable.innerHTML = '<tr><td colspan="5" style="text-align:center;">No shipments yet</td></tr>';
+      return;
+    }
+    
+    shipments.forEach(s => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${s.trackingNumber || 'N/A'}</td>
+        <td>${s.recipient || "N/A"}</td>
+        <td>${s.status || ""}</td>
+        <td>${s.lastUpdate || ""}</td>
+        <td>
+          <button onclick="editShipment('${s.trackingNumber}')">Edit</button>
+          <button onclick="removeShipment('${s.trackingNumber}')">Delete</button>
+        </td>
+      `;
+      shipmentTable.appendChild(tr);
     });
   }
 
-  // Cleanup on page unload
+  // Cleanup
   window.addEventListener('beforeunload', () => {
     if (unsubscribeShipments) {
       unsubscribeShipments();
     }
   });
 
+  // Start
   loadShipments();
 });

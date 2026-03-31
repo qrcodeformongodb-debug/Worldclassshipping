@@ -36,7 +36,7 @@
     <input id="lastUpdate" placeholder="Last Update (e.g. 21 Oct 2026, 3:45 PM)">
 
     <h3>Set Route</h3>
-    <div id="adminMap" style="height:300px; flex-basis:100%; margin-bottom:10px;"></div>
+    <div id="adminMap" style="height:300px; width:100%; margin-bottom:10px;"></div>
     <p style="color:gray; font-size:0.9em;">
       Click on the map to add points (Origin → Transit → Destination). Drag markers to adjust.
     </p>
@@ -51,6 +51,7 @@
         <th>Tracking</th>
         <th>Receiver</th>
         <th>Status</th>
+        <th>Last Update</th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -58,6 +59,7 @@
   </table>
 </section>
 
+<!-- Leaflet must load before your module scripts -->
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script type="module" src="firebase.js"></script>
 <script type="module" src="adminscript.js"></script>
