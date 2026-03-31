@@ -63,6 +63,128 @@
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     .error-state { color: #e74c3c; text-align: center; padding: 40px 20px; }
     .error-state button { margin-top: 12px; padding: 8px 16px; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; }
+    
+    /* ERROR DISPLAY STYLES */
+    .error-panel {
+      position: fixed;
+      top: 60px;
+      left: 0;
+      right: 0;
+      background: #fff5f5;
+      border-bottom: 3px solid #e74c3c;
+      padding: 16px 24px;
+      z-index: 999;
+      max-height: 300px;
+      overflow-y: auto;
+      display: none;
+    }
+    .error-panel.show {
+      display: block;
+    }
+    .error-panel h4 {
+      color: #c0392b;
+      margin-bottom: 8px;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .error-item {
+      background: white;
+      border-left: 4px solid #e74c3c;
+      padding: 12px;
+      margin-bottom: 8px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      color: #2c3e50;
+    }
+    .error-item .timestamp {
+      color: #7f8c8d;
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
+    .error-item .type {
+      color: #e74c3c;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    .error-item .message {
+      color: #2c3e50;
+      word-break: break-word;
+    }
+    .error-item .stack {
+      color: #7f8c8d;
+      font-size: 11px;
+      margin-top: 8px;
+      white-space: pre-wrap;
+      max-height: 100px;
+      overflow-y: auto;
+    }
+    .error-toggle {
+      position: fixed;
+      top: 70px;
+      right: 20px;
+      background: #e74c3c;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 12px;
+      z-index: 1001;
+      display: none;
+    }
+    .error-toggle.show {
+      display: block;
+    }
+    .error-toggle.has-errors {
+      background: #c0392b;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    .debug-info {
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      padding: 12px;
+      margin: 8px 0;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+    }
+    .debug-info.success {
+      border-color: #27ae60;
+      background: #f0fff4;
+    }
+    .debug-info.error {
+      border-color: #e74c3c;
+      background: #fff5f5;
+    }
+    .connection-status {
+      position: fixed;
+      top: 70px;
+      left: 340px;
+      padding: 6px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      z-index: 998;
+      transition: all 0.3s;
+    }
+    .connection-status.connected {
+      background: #27ae60;
+      color: white;
+    }
+    .connection-status.disconnected {
+      background: #e74c3c;
+      color: white;
+    }
+    .connection-status.connecting {
+      background: #f39c12;
+      color: white;
+    }
   </style>
 </head>
 <body>
@@ -74,6 +196,18 @@
     <a href="chat.html" class="active">Support Chat</a>
   </nav>
 </header>
+
+<!-- Error Display Panel -->
+<button class="error-toggle" id="errorToggle" onclick="toggleErrorPanel()">
+  ⚠️ Errors (<span id="errorCount">0</span>)
+</button>
+<div class="error-panel" id="errorPanel">
+  <h4>🔴 Error Log (Newest First)</h4>
+  <div id="errorList"></div>
+</div>
+
+<!-- Connection Status -->
+<div class="connection-status connecting" id="connectionStatus">Connecting...</div>
 
 <div class="chat-admin-container">
   <aside class="chat-sidebar">

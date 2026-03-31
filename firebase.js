@@ -1,4 +1,4 @@
-// firebase.js - CDN version for static hosting
+// firebase.js - CDN version for static hosting with error handling
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
 import { 
   getFirestore, 
@@ -16,7 +16,9 @@ import {
   addDoc, 
   serverTimestamp, 
   increment, 
-  writeBatch 
+  writeBatch,
+  enableIndexedDbPersistence,
+  CACHE_SIZE_UNLIMITED
 } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 import { getAnalytics } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js';
 
@@ -34,6 +36,22 @@ const firebaseConfig = {
 // Initialize
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+
+// Try to enable persistence (optional, for offline support)
+try {
+  enableIndexedDbPersistence(db, {
+    cacheSizeBytes: CACHE_SIZE_UNLIMITED
+  }).catch((err) => {
+    if (err.code == 'failed-precondition') {
+      console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
+    } else if (err.code == 'unimplemented') {
+      console.warn('Browser doesn\'t support persistence');
+    }
+  });
+} catch (e) {
+  console.log('Persistence not enabled:', e.message);
+}
+
 const analytics = getAnalytics(app);
 
 // Generate tracking number
@@ -84,12 +102,18 @@ export const shipmentService = {
     await deleteDoc(doc(db, 'shipments', trackingNumber.toUpperCase()));
   },
 
-  subscribeToShipments(callback) {
+  subscribeToShipments(callback, onError) {
     const q = query(collection(db, 'shipments'), orderBy('createdAt', 'desc'));
-    return onSnapshot(q, (snapshot) => {
-      const shipments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      callback(shipments);
-    });
+    return onSnapshot(q, 
+      (snapshot) => {
+        const shipments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(shipments);
+      },
+      (error) => {
+        console.error('Shipments subscription error:', error);
+        if (onError) onError(error);
+      }
+    );
   }
 };
 
@@ -131,16 +155,22 @@ export const chatService = {
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   },
 
-  subscribeToConversations(callback) {
+  subscribeToConversations(callback, onError) {
     const q = query(
       collection(db, 'conversations'),
       where('status', '==', 'active'),
       orderBy('updatedAt', 'desc')
     );
-    return onSnapshot(q, (snapshot) => {
-      const conversations = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      callback(conversations);
-    });
+    return onSnapshot(q, 
+      (snapshot) => {
+        const conversations = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(conversations);
+      },
+      (error) => {
+        console.error('Conversations subscription error:', error);
+        if (onError) onError(error);
+      }
+    );
   },
 
   async getMessages(conversationId) {
@@ -152,15 +182,21 @@ export const chatService = {
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   },
 
-  subscribeToMessages(conversationId, callback) {
+  subscribeToMessages(conversationId, callback, onError) {
     const q = query(
       collection(db, 'conversations', conversationId, 'messages'),
       orderBy('createdAt', 'asc')
     );
-    return onSnapshot(q, (snapshot) => {
-      const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      callback(messages);
-    });
+    return onSnapshot(q, 
+      (snapshot) => {
+        const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(messages);
+      },
+      (error) => {
+        console.error('Messages subscription error:', error);
+        if (onError) onError(error);
+      }
+    );
   },
 
   async sendMessage(conversationId, content, sender) {
