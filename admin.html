@@ -6,67 +6,91 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="admin.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.css" />
   <style>
-    /* Error display styles */
-    #errorBox {
-      background: #dc3545;
-      color: white;
+    #adminMap {
+      width: 100%;
+      height: 400px;
+      margin-bottom: 10px;
+      border: 2px solid #002147;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .video-section {
+      margin: 15px 0;
       padding: 15px;
-      margin: 10px 0;
-      border-radius: 4px;
-      display: none;
-      font-family: monospace;
-      white-space: pre-wrap;
-      word-break: break-all;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border: 1px solid #ddd;
     }
-    #errorBox.show {
-      display: block;
+    .video-preview {
+      margin-top: 10px;
+      max-width: 100%;
     }
-    #statusBox {
+    .video-preview video {
+      max-width: 100%;
+      max-height: 300px;
+      border-radius: 8px;
+    }
+    .upload-btn {
       background: #28a745;
       color: white;
-      padding: 10px;
-      margin: 10px 0;
-      border-radius: 4px;
-      display: none;
-    }
-    #statusBox.show {
-      display: block;
-    }
-    #debugLog {
-      background: #f8f9fa;
-      border: 1px solid #ddd;
-      padding: 10px;
-      margin: 10px 0;
-      max-height: 200px;
-      overflow-y: auto;
-      font-family: monospace;
-      font-size: 12px;
-      display: none;
-    }
-    #debugLog.show {
-      display: block;
-    }
-    .debug-line {
-      margin: 2px 0;
-      padding: 2px 0;
-      border-bottom: 1px solid #eee;
-    }
-    .debug-error {
-      color: #dc3545;
-      font-weight: bold;
-    }
-    .debug-success {
-      color: #28a745;
-    }
-    #toggleDebug {
-      background: #6c757d;
-      color: white;
+      padding: 10px 20px;
       border: none;
-      padding: 5px 10px;
+      border-radius: 5px;
       cursor: pointer;
-      margin: 5px 0;
+      margin-right: 10px;
     }
+    .upload-btn:hover {
+      background: #218838;
+    }
+    .upload-btn:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 20px;
+      background: #e9ecef;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-top: 10px;
+      display: none;
+    }
+    .progress-bar.show {
+      display: block;
+    }
+    .progress-fill {
+      height: 100%;
+      background: #28a745;
+      width: 0%;
+      transition: width 0.3s;
+    }
+    .route-line {
+      stroke: #002147;
+      stroke-width: 4;
+      fill: none;
+      stroke-dasharray: 10;
+      animation: dash 30s linear infinite;
+    }
+    @keyframes dash {
+      to {
+        stroke-dashoffset: -1000;
+      }
+    }
+    .custom-marker {
+      background: #002147;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 12px;
+      border: 3px solid white;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    }
+    .marker-origin { background: #28a745; }
+    .marker-transit { background: #ffc107; color: #000; }
+    .marker-destination { background: #dc3545; }
   </style>
 </head>
 <body>
@@ -82,14 +106,10 @@
 <section class="admin-section">
   
   <!-- Error Display Box -->
-  <div id="errorBox"></div>
+  <div id="errorBox" style="display:none; background:#dc3545; color:white; padding:15px; margin:10px 0; border-radius:4px;"></div>
   
   <!-- Status Display Box -->
-  <div id="statusBox"></div>
-  
-  <!-- Debug Log -->
-  <button id="toggleDebug" onclick="toggleDebug()">Show Debug Log</button>
-  <div id="debugLog"></div>
+  <div id="statusBox" style="display:none; background:#28a745; color:white; padding:10px; margin:10px 0; border-radius:4px;"></div>
 
   <h2>Create / Edit Shipment</h2>
 
@@ -105,13 +125,29 @@
     <input id="status" placeholder="Current Status">
     <input id="lastUpdate" placeholder="Last Update">
 
-    <h3>Set Route</h3>
-    <div id="adminMap" style="height:300px; width:100%; margin-bottom:10px; border:1px solid #ddd;"></div>
+    <h3>📍 Set Route (Click map to add points)</h3>
+    <div id="adminMap"></div>
     <p style="color:gray; font-size:0.9em;">
-      Click on the map to add points. Drag markers to adjust.
+      Click on the map to add Origin → Transit → Destination. Drag markers to adjust. Route line will animate to show movement.
     </p>
 
-    <button onclick="saveShipment()">Save Shipment</button>
+    <!-- Video Upload Section -->
+    <div class="video-section">
+      <h3>📹 Shipment Video</h3>
+      <input type="file" id="videoInput" accept="video/*" style="display:none;">
+      <button class="upload-btn" onclick="document.getElementById('videoInput').click()">Select Video</button>
+      <button class="upload-btn" id="uploadVideoBtn" onclick="uploadVideo()" disabled>Upload to Cloudinary</button>
+      <span id="videoFileName" style="margin-left:10px; color:#666;"></span>
+      
+      <div class="progress-bar" id="progressBar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      
+      <div class="video-preview" id="videoPreview"></div>
+      <input type="hidden" id="videoUrl">
+    </div>
+
+    <button onclick="saveShipment()" style="margin-top:20px; padding:12px 30px; font-size:16px;">Save Shipment</button>
   </div>
 
   <h2>All Shipments</h2>
@@ -122,11 +158,12 @@
         <th>Receiver</th>
         <th>Status</th>
         <th>Last Update</th>
+        <th>Video</th>
         <th>Actions</th>
       </tr>
     </thead>
     <tbody id="shipmentTable">
-      <tr><td colspan="5" style="text-align:center;">Loading...</td></tr>
+      <tr><td colspan="6" style="text-align:center;">Loading...</td></tr>
     </tbody>
   </table>
 </section>
@@ -134,56 +171,7 @@
 <!-- Leaflet -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<script>
-  // Global error display functions
-  window.showError = function(msg) {
-    const box = document.getElementById('errorBox');
-    box.textContent = 'ERROR: ' + msg;
-    box.classList.add('show');
-    window.logDebug('ERROR: ' + msg, 'error');
-  };
-  
-  window.showStatus = function(msg) {
-    const box = document.getElementById('statusBox');
-    box.textContent = msg;
-    box.classList.add('show');
-    setTimeout(() => box.classList.remove('show'), 5000);
-    window.logDebug('STATUS: ' + msg, 'success');
-  };
-  
-  window.logDebug = function(msg, type = 'info') {
-    const log = document.getElementById('debugLog');
-    const line = document.createElement('div');
-    line.className = 'debug-line debug-' + type;
-    line.textContent = new Date().toLocaleTimeString() + ' - ' + msg;
-    log.appendChild(line);
-  };
-  
-  window.toggleDebug = function() {
-    const log = document.getElementById('debugLog');
-    log.classList.toggle('show');
-    const btn = document.getElementById('toggleDebug');
-    btn.textContent = log.classList.contains('show') ? 'Hide Debug Log' : 'Show Debug Log';
-  };
-  
-  // Catch all errors
-  window.onerror = function(msg, url, line, col, error) {
-    const fullMsg = msg + ' (line ' + line + ':' + col + ')';
-    window.showError(fullMsg);
-    window.logDebug('WINDOW ERROR: ' + fullMsg, 'error');
-    return false;
-  };
-  
-  // Catch unhandled promise rejections
-  window.addEventListener('unhandledrejection', function(e) {
-    window.showError('Promise rejected: ' + e.reason);
-    window.logDebug('UNHANDLED REJECTION: ' + e.reason, 'error');
-  });
-  
-  window.logDebug('Page loaded, waiting for scripts...');
-</script>
-
-<!-- Firebase Module Scripts -->
+<!-- Firebase and Admin Scripts -->
 <script type="module" src="firebase.js"></script>
 <script type="module" src="adminscript.js"></script>
 

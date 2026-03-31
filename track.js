@@ -1,6 +1,5 @@
-// track.js - Firebase CDN version with real-time chat
+// track.js - Firebase CDN version with video and enhanced map
 import { shipmentService, chatService } from './firebase.js';
-import { collection, query, orderBy, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
 
 // ===============================
 // GET TRACKING NUMBER
@@ -51,6 +50,16 @@ async function loadShipment() {
     document.getElementById("status").textContent = shipment.status || "N/A";
     document.getElementById("lastUpdate").textContent = shipment.lastUpdate || "N/A";
 
+    // Show video if exists
+    if (shipment.videoUrl) {
+      const videoSection = document.getElementById("videoSection");
+      const video = document.getElementById("shipmentVideo");
+      if (videoSection && video) {
+        video.src = shipment.videoUrl;
+        videoSection.style.display = "block";
+      }
+    }
+
     initMap(shipment);
     initializeChat();
 
@@ -61,26 +70,110 @@ async function loadShipment() {
 }
 
 // ===============================
-// MAP
+// ENHANCED MAP
 // ===============================
 function initMap(shipment) {
-  const map = L.map("map").setView([6.5244, 3.3792], 4);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+  const map = L.map("map", {
+    scrollWheelZoom: false
+  }).setView([20, 0], 2);
 
-  if (!shipment.route) return;
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(map);
 
-  shipment.route.forEach(r => {
-    L.marker([r.lat, r.lng]).addTo(map).bindPopup(r.label || "");
+  L.control.scale().addTo(map);
+
+  if (!shipment.route || shipment.route.length === 0) {
+    // Default view if no route
+    map.setView([6.5244, 3.3792], 4);
+    return;
+  }
+
+  const markers = [];
+  
+  shipment.route.forEach((r, index) => {
+    // Determine marker style
+    let bgColor = '#ffc107';
+    let textColor = '#000';
+    let label = r.label || `Point ${index + 1}`;
+    
+    if (r.type === 'origin' || label.toLowerCase().includes('origin')) {
+      bgColor = '#28a745';
+      textColor = '#fff';
+    } else if (r.type === 'destination' || label.toLowerCase().includes('destination')) {
+      bgColor = '#dc3545';
+      textColor = '#fff';
+    }
+
+    const customIcon = L.divIcon({
+      className: 'custom-marker',
+      html: `<div style="
+        background: ${bgColor};
+        color: ${textColor};
+        padding: 8px 12px;
+        border-radius: 20px;
+        font-weight: bold;
+        font-size: 12px;
+        border: 3px solid white;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        white-space: nowrap;
+      ">${label}</div>`,
+      iconSize: null,
+      iconAnchor: [15, 30]
+    });
+
+    const marker = L.marker([r.lat, r.lng], { icon: customIcon })
+      .addTo(map)
+      .bindPopup(`<strong>${label}</strong><br>Lat: ${r.lat.toFixed(4)}<br>Lng: ${r.lng.toFixed(4)}`);
+    
+    markers.push(marker);
   });
 
-  const coords = shipment.route.map(r => [r.lat, r.lng]);
-  if (coords.length) {
-    map.fitBounds(coords);
+  // Draw animated route line
+  if (shipment.route.length >= 2) {
+    const latlngs = shipment.route.map(r => [r.lat, r.lng]);
+    
+    // Animated line
+    const routeLine = L.polyline(latlngs, {
+      color: '#002147',
+      weight: 4,
+      opacity: 0.8,
+      dashArray: '10, 10',
+      lineCap: 'round'
+    }).addTo(map);
+
+    // Add moving marker animation
+    let currentIndex = 0;
+    const movingMarker = L.circleMarker(latlngs[0], {
+      radius: 8,
+      fillColor: '#002147',
+      color: '#fff',
+      weight: 2,
+      opacity: 1,
+      fillOpacity: 0.9
+    }).addTo(map);
+
+    // Animate along route
+    function animateMarker() {
+      currentIndex = (currentIndex + 1) % latlngs.length;
+      movingMarker.setLatLng(latlngs[currentIndex]);
+      setTimeout(animateMarker, 2000);
+    }
+    
+    // Start animation after delay
+    setTimeout(animateMarker, 1000);
+  }
+
+  // Fit bounds
+  if (markers.length > 0) {
+    const group = new L.featureGroup(markers);
+    map.fitBounds(group.getBounds().pad(0.1));
   }
 }
 
 // ===============================
-// CHAT INITIALIZE
+// CHAT (same as before)
 // ===============================
 async function initializeChat() {
   chatTrackingNumber.textContent = tn;
@@ -99,7 +192,6 @@ async function initializeChat() {
     const conversation = await chatService.getOrCreateConversation(tn);
     conversationId = conversation.id;
     
-    // Subscribe to real-time messages
     unsubscribeMessages = chatService.subscribeToMessages(conversationId, (messages) => {
       renderMessages(messages);
       updateUnread(messages);
@@ -110,9 +202,6 @@ async function initializeChat() {
   }
 }
 
-// ===============================
-// RENDER MESSAGES
-// ===============================
 function renderMessages(messages) {
   if (!messages.length) {
     chatMessages.innerHTML = "";
@@ -140,9 +229,6 @@ function renderMessages(messages) {
   scrollBottom();
 }
 
-// ===============================
-// SEND MESSAGE
-// ===============================
 async function sendMessage() {
   const content = chatInput.value.trim();
   if (!content || !conversationId) return;
@@ -151,15 +237,11 @@ async function sendMessage() {
 
   try {
     await chatService.sendMessage(conversationId, content, "user");
-    // Message will appear via real-time subscription
   } catch (err) {
     console.error("Send error:", err);
   }
 }
 
-// ===============================
-// OPEN / CLOSE CHAT
-// ===============================
 function toggleChat() {
   if (chatWindow.classList.contains("open")) {
     closeChat();
@@ -174,7 +256,6 @@ function openChat() {
     chatInput.focus();
   }, 200);
   
-  // Mark as read when opening
   if (conversationId) {
     chatService.markAsRead(conversationId);
   }
@@ -184,9 +265,6 @@ function closeChat() {
   chatWindow.classList.remove("open");
 }
 
-// ===============================
-// UNREAD COUNT
-// ===============================
 function updateUnread(messages) {
   const unread = messages.filter(m => m.sender === "admin" && !m.read);
   
@@ -198,9 +276,6 @@ function updateUnread(messages) {
   }
 }
 
-// ===============================
-// HELPERS
-// ===============================
 function scrollBottom() {
   chatBody.scrollTop = chatBody.scrollHeight;
 }
@@ -212,12 +287,10 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// Cleanup on page unload
 window.addEventListener('beforeunload', () => {
   if (unsubscribeMessages) {
     unsubscribeMessages();
   }
 });
 
-// Load shipment on page load
 loadShipment();
