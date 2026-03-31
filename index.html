@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>worldclassshipping | Track Shipment</title>
+  <link rel="stylesheet" href="indexstyle.css" />
+</head>
+<body>
+
+<header class="navbar">
+  <div class="logo">worldclassshipping</div>
+  <nav>
+    <a href="#">About Us</a>
+    <a href="#">Services</a>
+    <a class="active" href="#">Track</a>
+    <a href="#">Careers</a>
+    <a href="#">Contact Us</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="overlay">
+    <h1>TRACK YOUR SHIPMENT</h1>
+    <p>Get the status of your shipment quickly. Real-time updates for your package.</p>
+
+    <div class="tracker-box">
+      <label>TRACKING NUMBER</label>
+      <input type="text" id="trackingNumber" placeholder="Enter tracking number" />
+      <button onclick="trackShipment()">TRACK</button>
+
+      <div id="trackingResult" style="margin-top:20px; padding:10px; background:#f0f0f0; border-radius:5px;"></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>© worldclassshipping Limited. All Rights Reserved</p>
+</footer>
+<script type="module" src="firebase.js"></script>
+<script type="module" src="indexscript.js"></script>
+</body>
+</html>

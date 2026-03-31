@@ -1,0 +1,251 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+body {
+  background-color: #f4f4f4;
+}
+
+/* NAVBAR */
+.navbar {
+  background: #ffffff;
+  padding: 15px 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #ddd;
+}
+
+.logo {
+  font-weight: bold;
+  font-size: 20px;
+  color: #000;
+}
+
+.navbar nav a {
+  margin-left: 20px;
+  text-decoration: none;
+  color: #333;
+  font-size: 14px;
+}
+
+.navbar nav a.active {
+  background: #c40000;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 3px;
+}
+
+/* HERO SECTION */
+.hero {
+  background: url("https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d") center/cover no-repeat;
+  height: 500px;
+  position: relative;
+}
+
+.overlay {
+  background: rgba(0, 0, 0, 0.6);
+  height: 100%;
+  color: #fff;
+  padding: 80px 40px;
+}
+
+.overlay h1 {
+  font-size: 36px;
+  margin-bottom: 15px;
+}
+
+.overlay p {
+  max-width: 700px;
+  line-height: 1.6;
+  margin-bottom: 40px;
+}
+
+/* TRACKER BOX */
+.tracker-box {
+  background: #2f3b45;
+  padding: 25px;
+  max-width: 400px;
+}
+
+.tracker-box label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+.tracker-box input {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 15px;
+  border: none;
+}
+
+.tracker-box button {
+  width: 100%;
+  padding: 10px;
+  background: #f39c12;
+  border: none;
+  color: #fff;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+/* FOOTER */
+footer {
+  background: #0b2b50;
+  color: #fff;
+  text-align: center;
+  padding: 20px;
+  font-size: 13px;
+}
+/* RESET */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* BODY */
+body {
+  background: #f5f7fa;
+  color: #333;
+}
+
+/* NAVBAR */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 25px;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.logo {
+  font-size: 22px;
+  font-weight: bold;
+  color: #000;
+}
+
+.navbar nav a {
+  margin-left: 15px;
+  text-decoration: none;
+  color: #555;
+  font-size: 14px;
+}
+
+.navbar nav a.active {
+  background: #c62828;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 4px;
+}
+
+/* HERO */
+.hero {
+  min-height: 100vh;
+  background: url("https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d")
+    center/cover no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.overlay {
+  background: rgba(0,0,0,0.6);
+  padding: 40px 20px;
+  width: 100%;
+  text-align: center;
+  color: #fff;
+}
+
+/* HERO TEXT */
+.overlay h1 {
+  font-size: 32px;
+  margin-bottom: 15px;
+  letter-spacing: 1px;
+}
+
+.overlay p {
+  max-width: 600px;
+  margin: 0 auto 30px;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* TRACKER BOX */
+.tracker-box {
+  background: #2f3e46;
+  max-width: 400px;
+  margin: 0 auto;
+  padding: 25px;
+  border-radius: 6px;
+}
+
+.tracker-box label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 8px;
+  color: #ddd;
+  text-align: left;
+}
+
+.tracker-box input {
+  width: 100%;
+  padding: 12px;
+  font-size: 14px;
+  border: none;
+  border-radius: 4px;
+  margin-bottom: 15px;
+}
+
+.tracker-box button {
+  width: 100%;
+  padding: 12px;
+  font-size: 15px;
+  border: none;
+  background: #f9a825;
+  color: #000;
+  font-weight: bold;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tracker-box button:hover {
+  background: #fbc02d;
+}
+
+/* RESULT BOX */
+#trackingResult {
+  color: #000;
+  font-size: 14px;
+}
+
+/* FOOTER */
+footer {
+  background: #0d1b2a;
+  color: #ccc;
+  text-align: center;
+  padding: 15px;
+  font-size: 13px;
+}
+
+/* MOBILE FIX */
+@media (max-width: 600px) {
+  .navbar nav {
+    display: none;
+  }
+
+  .overlay h1 {
+    font-size: 26px;
+  }
+}

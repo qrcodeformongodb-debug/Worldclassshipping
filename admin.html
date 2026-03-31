@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>worldclassshipping | Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="admin.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+</head>
+<body>
+
+<header class="navbar">
+  <div class="logo">worldclassshipping Admin</div>
+  <nav>
+    <a href="admin.html" class="active">Shipments</a>
+    <a href="chat.html">Support Chat</a>
+  </nav>
+</header>
+
+<section class="admin-section">
+  <h2>Create / Edit Shipment</h2>
+
+  <div class="form-box">
+    <input id="tracking" readonly placeholder="Tracking Number">
+
+    <input id="sender" placeholder="Sender Name">
+    <input id="recipient" placeholder="Receiver Name">
+    <input id="origin" placeholder="Origin">
+    <input id="destination" placeholder="Destination">
+    <input id="weight" placeholder="Weight (kg)">
+
+    <!-- STATUS (FREE TEXT) -->
+    <input id="status" placeholder="Current Status (you type it)">
+
+    <!-- LAST UPDATE -->
+    <input id="lastUpdate" placeholder="Last Update (e.g. 21 Oct 2026, 3:45 PM)">
+
+    <h3>Set Route</h3>
+    <div id="adminMap" style="height:300px; flex-basis:100%; margin-bottom:10px;"></div>
+    <p style="color:gray; font-size:0.9em;">
+      Click on the map to add points (Origin → Transit → Destination). Drag markers to adjust.
+    </p>
+
+    <button onclick="saveShipment()">Save Shipment</button>
+  </div>
+
+  <h2>All Shipments</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Tracking</th>
+        <th>Receiver</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="shipmentTable"></tbody>
+  </table>
+</section>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script type="module" src="firebase.js"></script>
+<script type="module" src="adminscript.js"></script>
+</body>
+</html>
