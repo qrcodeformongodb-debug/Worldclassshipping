@@ -171,7 +171,7 @@ function buildJourneyHTML(shipment) {
   // Define journey steps
   const steps = [
     { title: 'Package Picked Up', location: shipment.origin || 'Origin', key: 'picked' },
-    { title: 'Departed Origin', location: `${shipment.origin || 'Origin'} Intl Airport`, key: 'departed' },
+    { title: 'Departed Origin', location: `${shipment.origin || 'Origin'} Intl shipmemt`, key: 'departed' },
     { title: 'In Transit - Hub', location: 'Sorting Facility', key: 'transit' },
     { title: 'Arrived in Destination Country', location: shipment.destination || 'Destination', key: 'arrived' },
     { title: 'Out for Delivery', location: shipment.destination || 'Destination', key: 'out' },
